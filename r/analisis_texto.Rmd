@@ -6,7 +6,7 @@ output: html_notebook
 
 ```{r}
 library(tidyverse)
-tweets <- read_csv('../data/tweets_limpios_2021_05_12.csv')
+tweets <- read_csv('../data/tweets_limpios_2021_05_13_2.csv')
 
 sim_jaccard <- function(a, b){
     length(intersect(a, b)) / length(union(a, b))
@@ -44,10 +44,38 @@ calcular_firmas_doc <- function(tejas_df, hash_funs){
     }
     tibble(doc_id = 1:num_docs, firma = firmas)
 }
+
+separar_cubetas_fun <- function(particion){
+    function(firma){
+        map_chr(particion, function(x){
+            prefijo <- paste0(x, collapse = '')
+            cubeta <- paste(firma[x], collapse = "/")
+            paste(c(prefijo, cubeta), collapse = '|')
+        })
+    }
+}
+
+extraer_pares <- function(cubetas_df, cubeta, docs, textos = NULL, names = NULL){
+   enq_cubeta <- enquo(cubeta)
+   enq_docs <- enquo(docs)
+   pares <- cubetas_df %>% 
+    group_by(!!enq_cubeta) %>% 
+    mutate(pares = map(!!enq_docs, ~ combn(sort(.x), 2, simplify = FALSE))) %>%
+    select(!!enq_cubeta, pares) %>% unnest_legacy %>% 
+    mutate(a = map_int(pares, 1)) %>% 
+    mutate(b = map_int(pares, 2)) %>% 
+    select(-pares) %>% ungroup %>% select(-!!enq_cubeta) %>% 
+    unique #quitar pares repetidos
+   if(!is.null(textos)){
+       pares <- pares %>% mutate(usuario_a = names[a], usuario_b = names[b], texto_a = textos[a], texto_b = textos[b])
+   }
+   pares %>% ungroup 
+}
+
+tweets_texto <- tweets$texto_limpio
 ```
 
 ```{r}
-tweets_texto <- tweets$texto_limpio
 
 set.seed(20210512)
 hash_f <- map(1:50, ~ generar_hash())
@@ -153,12 +181,12 @@ separar_cubetas_fun <- function(particion){
     }
 }
 sep_cubetas <- separar_cubetas_fun(particion)
-sep_cubetas(firmas$firma[[1]])
+sep_cubetas(firmas_tw$firma[[1]])
 ```
 
 
 ```{r}
-firmas_3 <- firmas %>% 
+firmas_3 <- firmas_tw %>% 
     mutate(cubeta = map(firma, sep_cubetas)) %>% 
     select(-firma) %>% unnest_legacy
 firmas_3
@@ -180,9 +208,9 @@ cubetas_df
 
 Pares
 ```{r}
-pares_candidatos <- extraer_pares(cubetas_df, cubeta, docs, textos = textos_dup) %>% 
+pares_candidatos <- extraer_pares(cubetas_df, cubeta, docs, textos = tweets_texto) %>% 
                   arrange(texto_a)
-DT::datatable(pares_candidatos)
+#DT::datatable(pares_candidatos)
 ```
 
 Ahora podemos calcular similitud exacta y agrupar:
@@ -190,7 +218,7 @@ Ahora podemos calcular similitud exacta y agrupar:
 pares_scores <- pares_candidatos %>% 
   mutate(score = map2_dbl(texto_a, texto_b,
   ~ sim_jaccard(calcular_tejas(.x, 5), calcular_tejas(.y, 5))))
-DT::datatable(pares_scores)
+#DT::datatable(pares_scores)
 ```
 
 Podemos hacer clustering con las similitudes de Jaccard:
@@ -205,57 +233,90 @@ wc
 
 Podemos deduplicar tweets
 ```{r}
-tw_hashes <- digest::digest2int(tw)
-tw_dedup <- tibble(tweet = tw, hash = tw_hashes) %>% 
+tw_hashes <- digest::digest2int(tweets_texto)
+tw_dedup <- tibble(tweet = tweets_texto, hash = tw_hashes) %>% 
   group_by(hash) %>% 
   summarise(tweet = tweet[1], .groups = "drop") %>%  
   mutate(longitud = nchar(tweet)) %>% 
   filter(longitud >= 5) %>% 
   pull(tweet)
-length(tw)
+
+tw_dedup_2 <- tibble(tweet = tweets_texto, usuario=tweets$username, hash = tw_hashes) %>% 
+  group_by(hash) %>% 
+  summarise(tweet = tweet[1], usuario=usuario[1], .groups = "drop") %>%  
+  mutate(longitud = nchar(tweet)) %>% 
+  filter(longitud >= 5) %>% 
+  pull(tweet, usuario)
+
+length(tweets_texto)
 length(tw_dedup)
+length(tw_dedup_2)
 ```
 
 y hacer todo de nuevo..
 ```{r}
-set.seed(9192)
+set.seed(20210512)
 hash_f <- map(1:12, ~ generar_hash())
-system.time(tejas_tbl <- crear_tejas_str(tw_dedup, k = 5))
-system.time(firmas_tw <- calcular_firmas_doc(tejas_tbl, hash_f))
+tejas_tbl <- crear_tejas_str(tw_dedup, k = 5)
+firmas_tw <- calcular_firmas_doc(tejas_tbl, hash_f)
 particion <- split(1:12, ceiling(1:12 / 6))
 particion
 sep_cubetas <- separar_cubetas_fun(particion) 
 sep_cubetas(firmas_tw$firma[[1]])
-system.time(
-  cubetas_tbl <- firmas_tw %>%
+cubetas_tbl <- firmas_tw %>%
     mutate(cubeta = map(firma, sep_cubetas)) %>%
     unnest_legacy(cubeta) %>% 
     group_by(cubeta) %>% 
     summarise(docs = list(doc_id), n = length(doc_id)) %>%
     arrange(desc(n))
-)
 cubetas_tbl %>% arrange(desc(n)) %>% head(10)
-#Notese que..
-cubetas_tbl$docs[[1]] %>% head %>% tw_dedup[.]
-cubetas_tbl$docs[[2]] %>% head %>% tw_dedup[.]
-cubetas_tbl$docs[[3]] %>% head %>% tw_dedup[.]
-cubetas_nu_tbl <- filter(cubetas_tbl, n > 2)
-cubetas_nu_tbl %>% nrow()
-pares_candidatos <- extraer_pares(cubetas_nu_tbl, cubeta, docs, textos = tw_dedup) %>% 
-                  arrange(texto_a)
-DT::datatable(pares_candidatos %>% head(100)) 
+```
 
+```{r}
+# Los textos en la cubeta más grande (15 documentos)
+DT::datatable(cubetas_tbl$docs[[1]] %>% data.frame(tweet=tw_dedup[.],usuario=attr(tw_dedup_2[.],'names')))
+```
+
+```{r}
+# Los textos en la segunda cubeta más grande (13 documentos)
+DT::datatable(cubetas_tbl$docs[[2]] %>% data.frame(tweet=tw_dedup[.],usuario=attr(tw_dedup_2[.],'names')))
 ```
 
 
-Ahora es manejable..?
+```{r}
+# Los textos en la tercer cubeta más grande (11 documentos)
+DT::datatable(cubetas_tbl$docs[[3]]  %>% data.frame(tweet=tw_dedup[.],usuario=attr(tw_dedup_2[.],'names')))
+```
+
+
+```{r}
+cubetas_nu_tbl <- filter(cubetas_tbl, n > 2)
+cubetas_nu_tbl %>% nrow()
+```
+
+```{r}
+# Agregar extracción de usuario a y usuario b
+pares_candidatos <- extraer_pares(cubetas_nu_tbl, cubeta, docs, textos = tw_dedup, names=attr(tw_dedup_2, 'names')) %>% 
+                  arrange(texto_a)
+DT::datatable(pares_candidatos, options = list( autoWidth = TRUE , 
+                                                dom = 'Blftip',
+                                                pageLength = 5,
+                                                searchHighlight = FALSE,
+                                                buttons = c('copy', 'csv', 'print'),
+                                                scrollX = TRUE,
+                                                fixedColumns = list(leftColumns = 2),
+                                                class = c('compact cell-border stripe hover') ,
+                                                rownames = FALSE))
+```
+
 ```{r}
 pares_scores <- pares_candidatos %>% 
   mutate(score = map2_dbl(texto_a, texto_b,
-  ~ sim_jaccard(calcular_tejas(.x, 5), calcular_tejas(.y, 5)))) %>% 
-  filter(score > 0.8)
+  ~ sim_jaccard(calcular_tejas(.x, 5), calcular_tejas(.y, 5)))) %>% arrange(desc(score))  #%>% filter(score > 0.8)
 DT::datatable(pares_scores)
 ```
+
+
 
 Podemos hacer clustering 
 ```{r}
@@ -272,7 +333,7 @@ Preguntas:
 
 Encontrar vecinos cercanos de documentos nuevos:
 ```{r}
-textos_nuevos <- c("Croatia broke through to finals", "One of these will be in the final Russia Croatia Sweden Switzerland")
+textos_nuevos <- c("Estamos recolectando víveres para damnificados del sismo en Oaxaca", "Buscamos ayuda para perritos perdidos en la Ciudad de México por sismo")
 cubetas_nuevas <- textos_nuevos %>% 
   crear_tejas_str(., k = 5) %>%
   calcular_firmas_doc(., hash_f) %>% 
@@ -280,7 +341,6 @@ cubetas_nuevas <- textos_nuevos %>%
   unnest_legacy(cubeta) %>% 
   pull(cubeta)
 
-cubetas_tbl %>% filter(cubeta %in% cubetas_nuevas) %>% unnest_legacy() %>% 
-  pull(docs) %>% tw_dedup[.]
+cubetas_tbl %>% filter(cubeta %in% cubetas_nuevas) %>% unnest_legacy()# %>% pull(docs) %>% tw_dedup[.]
 ```
 
