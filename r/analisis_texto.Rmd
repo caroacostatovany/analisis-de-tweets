@@ -1,0 +1,286 @@
+---
+title: "Análisis de texto"
+author: "Elena Villalobos, Eduardo Moreno, Carolina Acosta"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+tweets <- read_csv('../data/tweets_limpios_2021_05_12.csv')
+
+sim_jaccard <- function(a, b){
+    length(intersect(a, b)) / length(union(a, b))
+}
+
+calcular_tejas <- function(x, k = 2){
+  tokenizers::tokenize_character_shingles(x, n = k, lowercase = FALSE,
+    simplify = TRUE, strip_non_alpha = FALSE)
+}
+
+generar_hash <- function(){
+    r <- as.integer(stats::runif(1, 1, 2147483647))
+    funcion_hash <- function(shingles){
+        digest::digest2int(shingles, seed =r) 
+    }
+    funcion_hash
+}
+
+crear_tejas_str <- function(textos, k = 4){
+    num_docs <- length(textos)
+    tejas <- calcular_tejas(textos, k = k)
+    tejas_df <- tibble(doc_id = 1:num_docs, tejas = tejas)
+    tejas_df
+}
+
+calcular_firmas_doc <- function(tejas_df, hash_funs){
+    # Calcula firmas por documento
+    num_docs <- nrow(tejas_df)
+    num_hashes <- length(hash_funs)
+    tejas <- tejas_df$tejas
+    firmas <- vector("list", num_docs)
+    # este se puede paralelizar facilmente:
+    for(i in 1:num_docs){
+        firmas[[i]] <- map_dbl(hash_funs, ~ min(.x(tejas[[i]])))
+    }
+    tibble(doc_id = 1:num_docs, firma = firmas)
+}
+```
+
+```{r}
+tweets_texto <- tweets$texto_limpio
+
+set.seed(20210512)
+hash_f <- map(1:50, ~ generar_hash())
+tejas_tbl <- crear_tejas_str(tweets_texto[1:65489], k = 5)
+firmas_tw <- calcular_firmas_doc(tejas_tbl, hash_f)
+```
+
+Cuáles son similares al primer tweet:
+```{r}
+similitud_approx <- 
+  map_dbl(1:length(firmas_tw$firma), 
+    ~ mean(firmas_tw$firma[[.x]] == firmas_tw$firma[[1]]))
+indices <- which(similitud_approx > 0.4)
+length(indices)
+```
+
+```{r}
+similares <- tibble(tweet = tweets_texto[indices],
+           sim_approx = similitud_approx[indices],
+           usuario = tweets$username[indices],
+           retweet = tweets$retweet_user[indices]) %>%
+    arrange(sim_approx)
+
+DT::datatable(sample_n(similares, 25))
+```
+
+```{r}
+tejas_orig <- tejas_tbl$tejas[[1]]
+candidatos <- filter(tejas_tbl, doc_id %in% indices) %>% 
+  mutate(similitud = map_dbl(tejas, ~ sim_jaccard(.x, tejas_orig)))
+DT::datatable(candidatos %>% arrange(similitud) %>% 
+                select(doc_id, similitud) %>% 
+                mutate_if(is.numeric, ~ round(.x, 3)))
+```
+Buscando pares similares:
+
+```{r}
+pares <- crossing(firmas_tw, 
+  firmas_tw %>% rename(doc_id_1 = doc_id, firma_1 = firma)) %>%
+  filter(doc_id < doc_id_1)
+pares  <- pares %>% mutate(sim = map2_dbl(firma_1, firma, ~ mean(.x == .y)))
+```
+```{r}
+pares <- pares %>% arrange(desc(sim))
+pares
+```
+Con cubetas
+```{r}
+firmas_2 <- firmas_tw %>% 
+    # unir los minhashes en un una cadena
+    mutate(cubeta = map_chr(firma, paste, collapse ="/")) %>%
+    select(-firma)
+firmas_2
+```
+Agrupamos por cubetas
+```{r}
+cubetas_df <- firmas_2 %>% group_by(cubeta) %>% 
+    summarise(docs = list(doc_id), .groups = "drop") %>% 
+    mutate(n_docs = map_int(docs, length)) 
+```
+
+Filtramos las cubetas con más de un elemento:
+```{r}
+cubetas_df <- cubetas_df %>% filter(n_docs > 1)
+cubetas_df
+```
+Y los candidatos de alta similud se extraen de estas cubetas que tienen más de 1 elemento. Son:
+```{r}
+cubetas_df$docs
+
+```
+```{r}
+extraer_pares <- function(cubetas_df, cubeta, docs, textos = NULL){
+   enq_cubeta <- enquo(cubeta)
+   enq_docs <- enquo(docs)
+   pares <- cubetas_df %>% 
+    group_by(!!enq_cubeta) %>% 
+    mutate(pares = map(!!enq_docs, ~ combn(sort(.x), 2, simplify = FALSE))) %>%
+    select(!!enq_cubeta, pares) %>% unnest_legacy %>% 
+    mutate(a = map_int(pares, 1)) %>% 
+    mutate(b = map_int(pares, 2)) %>% 
+    select(-pares) %>% ungroup %>% select(-!!enq_cubeta) %>% 
+    unique #quitar pares repetidos
+   if(!is.null(textos)){
+       pares <- pares %>% mutate(texto_a = textos[a], texto_b = textos[b])
+   }
+   pares %>% ungroup 
+}
+candidatos <- extraer_pares(cubetas_df, cubeta, docs, textos = tweets_texto)
+#DT::datatable(candidatos)
+```
+
+
+```{r}
+particion <- split(1:6, ceiling(1:6 / 2))
+separar_cubetas_fun <- function(particion){
+    function(firma){
+        map_chr(particion, function(x){
+            prefijo <- paste0(x, collapse = '')
+            cubeta <- paste(firma[x], collapse = "/")
+            paste(c(prefijo, cubeta), collapse = '|')
+        })
+    }
+}
+sep_cubetas <- separar_cubetas_fun(particion)
+sep_cubetas(firmas$firma[[1]])
+```
+
+
+```{r}
+firmas_3 <- firmas %>% 
+    mutate(cubeta = map(firma, sep_cubetas)) %>% 
+    select(-firma) %>% unnest_legacy
+firmas_3
+```
+
+Agrupamos por cubetas:
+```{r}
+cubetas_df <- firmas_3 %>% group_by(cubeta) %>% 
+    summarise(docs = list(doc_id), .groups = "drop") %>% 
+    mutate(n_docs = map_int(docs, length)) 
+```
+
+Filtramos las cubetas con más de un elemento:
+```{r}
+cubetas_df <- cubetas_df %>% filter(n_docs > 1)
+cubetas_df
+```
+
+
+Pares
+```{r}
+pares_candidatos <- extraer_pares(cubetas_df, cubeta, docs, textos = textos_dup) %>% 
+                  arrange(texto_a)
+DT::datatable(pares_candidatos)
+```
+
+Ahora podemos calcular similitud exacta y agrupar:
+```{r}
+pares_scores <- pares_candidatos %>% 
+  mutate(score = map2_dbl(texto_a, texto_b,
+  ~ sim_jaccard(calcular_tejas(.x, 5), calcular_tejas(.y, 5))))
+DT::datatable(pares_scores)
+```
+
+Podemos hacer clustering con las similitudes de Jaccard:
+```{r}
+pares_dis <- pares_scores %>% select(a, b, score) 
+pares_g <- igraph::graph_from_data_frame(pares_dis, directed = FALSE)
+wc <- igraph::cluster_label_prop(pares_g, weights = pares_g$score)
+wc
+```
+
+
+
+Podemos deduplicar tweets
+```{r}
+tw_hashes <- digest::digest2int(tw)
+tw_dedup <- tibble(tweet = tw, hash = tw_hashes) %>% 
+  group_by(hash) %>% 
+  summarise(tweet = tweet[1], .groups = "drop") %>%  
+  mutate(longitud = nchar(tweet)) %>% 
+  filter(longitud >= 5) %>% 
+  pull(tweet)
+length(tw)
+length(tw_dedup)
+```
+
+y hacer todo de nuevo..
+```{r}
+set.seed(9192)
+hash_f <- map(1:12, ~ generar_hash())
+system.time(tejas_tbl <- crear_tejas_str(tw_dedup, k = 5))
+system.time(firmas_tw <- calcular_firmas_doc(tejas_tbl, hash_f))
+particion <- split(1:12, ceiling(1:12 / 6))
+particion
+sep_cubetas <- separar_cubetas_fun(particion) 
+sep_cubetas(firmas_tw$firma[[1]])
+system.time(
+  cubetas_tbl <- firmas_tw %>%
+    mutate(cubeta = map(firma, sep_cubetas)) %>%
+    unnest_legacy(cubeta) %>% 
+    group_by(cubeta) %>% 
+    summarise(docs = list(doc_id), n = length(doc_id)) %>%
+    arrange(desc(n))
+)
+cubetas_tbl %>% arrange(desc(n)) %>% head(10)
+#Notese que..
+cubetas_tbl$docs[[1]] %>% head %>% tw_dedup[.]
+cubetas_tbl$docs[[2]] %>% head %>% tw_dedup[.]
+cubetas_tbl$docs[[3]] %>% head %>% tw_dedup[.]
+cubetas_nu_tbl <- filter(cubetas_tbl, n > 2)
+cubetas_nu_tbl %>% nrow()
+pares_candidatos <- extraer_pares(cubetas_nu_tbl, cubeta, docs, textos = tw_dedup) %>% 
+                  arrange(texto_a)
+DT::datatable(pares_candidatos %>% head(100)) 
+
+```
+
+
+Ahora es manejable..?
+```{r}
+pares_scores <- pares_candidatos %>% 
+  mutate(score = map2_dbl(texto_a, texto_b,
+  ~ sim_jaccard(calcular_tejas(.x, 5), calcular_tejas(.y, 5)))) %>% 
+  filter(score > 0.8)
+DT::datatable(pares_scores)
+```
+
+Podemos hacer clustering 
+```{r}
+pares_dis <- pares_scores %>% select(a, b, score)
+pares_g <- igraph::graph_from_data_frame(pares_dis, directed = FALSE)
+wc <- igraph::cluster_label_prop(pares_g, weights = pares_g$score)
+wc
+```
+
+Preguntas:
+
+¿Puedes aproximar el tiempo que tardaría calcular similitud exacta entre todos los pares? Compara con el proceso mostrado arriba
+¿Qué efecto tiene el número de hashes que escogimos? ¿El número de cubetas que formamos?
+
+Encontrar vecinos cercanos de documentos nuevos:
+```{r}
+textos_nuevos <- c("Croatia broke through to finals", "One of these will be in the final Russia Croatia Sweden Switzerland")
+cubetas_nuevas <- textos_nuevos %>% 
+  crear_tejas_str(., k = 5) %>%
+  calcular_firmas_doc(., hash_f) %>% 
+  mutate(cubeta = map(firma, sep_cubetas)) %>%
+  unnest_legacy(cubeta) %>% 
+  pull(cubeta)
+
+cubetas_tbl %>% filter(cubeta %in% cubetas_nuevas) %>% unnest_legacy() %>% 
+  pull(docs) %>% tw_dedup[.]
+```
+
