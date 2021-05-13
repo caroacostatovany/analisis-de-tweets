@@ -1,8 +1,10 @@
 library(tidyverse)
 library(tidygraph)
 library(ggraph)
+library(igraphdata)
 
 rm(list=ls())
+theme_set(theme_minimal(base_size = 14))
 
 # LIMPIEZA
 df <- read.csv('/Volumes/MemoriaEle/HeavyData/tweets_sismo/tweets_limpios_2021_05_12.csv')
@@ -13,99 +15,57 @@ head(df[,c(1,2,4,5,6)])
 
 usuarios <- tibble(df$username, df$usuarios_mencionados)
 
+# hacemos una separación de todos los usuarios mencionados
+# que están en un solo renglón
 s <- strsplit(df$usuarios_mencionados, split =',')
+usuarios <- tibble(u_propietario = 
+                     rep(df$username, sapply(s, length)),
+                   u_mencionado = unlist(s))
 
-usuarios <- tibble(u_propietario = rep(df$username, sapply(s, length)),
-                       u_mencionado = unlist(s))
-
-
+# quitamos espacios
 usuarios$u_mencionado <- str_replace_all(usuarios$u_mencionado, " ", "")
 
+# RED: red dirigida
 
+# tbl_graph identifica los nodos y los vertices
+users_nodes_edges <- usuarios %>% as_tbl_graph()
 
-#################version raw(NO HACER CASO)####################
-head(usuarios)
-
-de_donde <- usuarios %>% 
-  distinct(u_propietario) %>% 
-  rename(label = u_propietario)
-
-a_donde <- usuarios %>% 
-  distinct(u_mencionado) %>% 
-  rename(label = u_mencionado)
-
-nodos <- full_join(de_donde, a_donde, by = "label")
-nodos
-
-nodos <- nodos %>% rowid_to_column("id")
-nodos
-
-repeticiones <- usuarios %>%  
-  group_by(u_propietario, u_mencionado) %>%
-  summarise(weight = n()) %>% 
-  ungroup()
-
-aris <- repeticiones %>% 
-  left_join(nodos, by = c("u_propietario" = "label")) %>% 
-  rename(from = id)
-
-aris <- aris %>% 
-  left_join(nodos, by = c("u_mencionado" = "label")) %>% 
-  rename(to = id)
-
-aris <- select(aris, from, to, weight)
-
-# agregamos
-
-aris_agregados <- aris %>% 
-  group_by(to, from) %>% 
-  summarise(pax = sum(weight))
-
-nodos_users <- 
-
-#dim(edges)
-#edges <- sample_n(edges,100)
-
-#red_usuarios <- network(edges, vertex.attr = nodes, matrix.type = "edgelist", ignore.eval = FALSE)
-
-
-
-############version FElipe#########
-
-users_chidos <- usuarios %>% as_tbl_graph()
-
-
-vertices_users <- users_chidos %>% 
+# obtenemos los vertices
+vertices_users <- users_nodes_edges %>% 
   activate(edges) %>% 
-  select(to, from) %>% as_tibble()
+  select(to, from) %>% 
+  as_tibble()
+vertices_users
 
-# agregar
+# agregamos los vertices por frecuencia
 vertices_agregados_users <- vertices_users %>% 
   group_by(to, from) %>% 
-  summarise(pax = n())
+  summarise(freq_vert = n())
+vertices_agregados_users
 
+# observamos los más frecuentes
 vertices_agregados_users %>% 
-  arrange(desc(pax)) %>% 
-  filter(pax>3) %>% 
-  tail()
+  arrange(desc(freq_vert)) %>% 
+  filter(freq_vert>5) %>% 
+  ggplot(aes(x=freq_vert)) +
+  geom_histogram(bins = 40,col='blue',fill='blue',alpha=0.7)
 
-
-
-# nodos, y agregar estado
-nodos_users <- users_chidos %>% activate(nodes) %>% 
+# obtenemos solo los nodos 
+nodos_users <- users_nodes_edges %>% 
+  activate(nodes) %>% 
   as_tibble() 
+nodos_users
 
-users_chidos_2 <- tbl_graph(nodes = nodos_users, edges = vertices_agregados_users) 
-users_chidos_2
+# volvemos a armar la red
+users_nodes_edges_2 <- tbl_graph(nodes = nodos_users, 
+                                 edges = vertices_agregados_users) 
+users_nodes_edges_2
 
-
-mouse <- users_chidos_2 %>% activate(edges) %>% 
-  select(from, to , pax)
-quantile(pull(mouse, pax), seq(0, 1, 0.1))
-
-corte_pax <- 15
-users_grandes <- users_chidos_2 %>% activate(edges) %>% 
-  filter(pax > corte_pax) %>% 
+# filtramos para los que tienen más frecuencia
+corte_freq_vert <- 10
+users_grandes <- users_nodes_edges_2 %>% 
+  activate(edges) %>% 
+  filter(freq_vert > corte_freq_vert) %>% 
   activate(nodes) %>% 
   filter(!node_is_isolated()) #eliminar nodos que quedan sin conexiones
 
@@ -118,12 +78,36 @@ users_grandes %>%
   geom_node_text(aes(label=name),  size=2)+
   theme_graph(base_family = "sans")
 
+# Componentes
+compo_users <-  users_grandes %>% 
+  activate(nodes) %>% 
+  mutate(componente = group_components())
 
+compo_users %>% 
+  as_tibble %>% 
+  group_by(componente) %>% 
+  tally()
 
+# filtramos por componente conexa más grande
+usi <- users_grandes %>% 
+  activate(nodes) %>% 
+  mutate(componente = group_components()) %>% 
+  filter(componente == 1)
 
+# Calculamos la intermediación
+usi <- usi %>% activate(nodes) %>% 
+  mutate(intermediacion = centrality_betweenness())
 
+# Graficamos
 
-
+usi %>% 
+  activate(nodes) %>% 
+  ggraph(layout = 'fr', niter = 2000) +
+  geom_edge_link(arrow = arrow(length = unit(2, 'mm')), 
+                 alpha = 0.1, colour="gray") + 
+  geom_node_point(aes(size = intermediacion)) +
+  geom_node_text(aes(label=name),  size=2)+
+  theme_graph(base_family = "sans")
 
 
 
