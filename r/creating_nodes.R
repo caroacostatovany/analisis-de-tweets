@@ -5,7 +5,7 @@ library(ggraph)
 rm(list=ls())
 
 # LIMPIEZA
-df <- read.csv('/Volumes/MemoriaEle/HeavyData/tweets_sismo/sismo_cdmx_sin_repeticiones_12052021.csv')
+df <- read.csv('/Volumes/MemoriaEle/HeavyData/tweets_sismo/tweets_limpios_2021_05_12.csv')
 
 usuarios <- tibble(df$username, df$usuarios_mencionados)
 
