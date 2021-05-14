@@ -1,0 +1,52 @@
+---
+title: 'Análisis de Twitter en periodos de emergencia: Sismo 19 del septiembre del 2017, CDMX'
+author: "Carorila Acosta, Eduardo Moreno & Elena Villalobos"
+output: 
+  html_document:
+    theme: lumen
+    hightlight: kate
+---
+***
+***
+
+## 1. Introducción
+
+Las redes sociales en periodos de emergencia ha incrementado su importancia por la rapidez de la comunicación y el alcance que tienen. Una de las redes sociales que más presencia tiene en este ámbito, es *Twitter*, debido a que la mayoría de entidades gubernamentales tienen una cuenta oficial por la cuál realizan comunicados. 
+
+El análisis del comportamiento en redes sociales como *Twitter* puede realizarse de varias maneras. Una es estudiando las relaciones entre los diferentes usuarios para ver la importancia que tiene como usuario para comunicar a la comunidad en general. Otra forma de analizar este comportamiento, es analizando el contenido del mismo texto para ver el tipo de mensajes que la gente está transmitiendo, si son similares o difiren mucho entre ellos. 
+
+Estas herramientas nos pueden ayudar a entender de manera amplia, el comportamiento de las personas en dicha red social, sobre todo en periodos de emergencia donde en crucial estar atentos a información oficial y verídica.
+
+### 1.1. Objetivo
+
+El objetivo del presente trabajo, es estudiar el comportamiento de *Twitter* en el sismo del 19 de septiembre del 2017 en la Ciudad de México. Este estudio se realizará con herramientas de análisis de texto, similitud de Jaccard y análisis de redes.
+
+### 1.2. Metodología
+
+Se realizó un *scrapping* de *Twitter*, obteniendo una llave lallala. 
+
+Se descargaron alrededor de 80,000 *tweets* de los cuáles se obtuvimos **6XXXX observaciones únicas**. El contenido de la base tiene las siguientes columnas:
+
+- created_at
+- id
+- author_id
+- conversation_id
+- referenced_tweets
+- reply_to_user_id
+- entities
+- text
+- username
+
+## 2. Limpieza y análisis de texto
+
+## 3. Similitud de Jaccard
+
+## 4. Análisis de Redes
+
+
+
+***
+
+***
+
+17/05/2021 

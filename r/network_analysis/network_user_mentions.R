@@ -49,7 +49,8 @@ vertices_agregados_users %>%
   arrange(desc(freq_vert)) %>% 
   filter(freq_vert>5) %>% 
   ggplot(aes(x=freq_vert)) +
-  geom_histogram(bins = 40,col='blue',fill='blue',alpha=0.7)
+  geom_histogram(bins = 40,col='blue',
+                 fill='blue',alpha=0.7)
 
 # obtenemos solo los nodos 
 nodos_users <- users_nodes_edges %>% 
@@ -58,8 +59,9 @@ nodos_users <- users_nodes_edges %>%
 nodos_users
 
 # volvemos a armar la red
-users_nodes_edges_2 <- tbl_graph(nodes = nodos_users, 
-                                 edges = vertices_agregados_users) 
+users_nodes_edges_2 <- tbl_graph(
+  nodes = nodos_users, 
+  edges = vertices_agregados_users) 
 users_nodes_edges_2
 
 # filtramos para los que tienen más frecuencia
@@ -72,11 +74,11 @@ users_grandes <- users_nodes_edges_2 %>%
 
 users_grandes %>% 
   activate(nodes) %>% 
-  #mutate(color_ca = ifelse(estado == "CA", "CA", "Otros")) %>% 
-  ggraph(layout = 'fr', niter = 2000) + 
-  geom_edge_link(arrow = arrow(length = unit(2, 'mm')), alpha = 0.1, colour="gray") + 
-  geom_node_point(aes(colour='blue'),alpha=0.5) +
-  geom_node_text(aes(label=name),  size=2)+
+  ggraph(layout = 'fr') + 
+  geom_edge_link(arrow = arrow(length = unit(1, 'mm')), 
+                 alpha = 0.5, colour="gray") + 
+  geom_node_point(alpha=0.5,colour='turquoise',size=3) +
+  geom_node_text(aes(label=name), repel = TRUE, size=2)+
   theme_graph(base_family = "sans")
 
 # Componentes
@@ -102,11 +104,12 @@ usi <- usi %>% activate(nodes) %>%
 # Graficamos
 usi %>% 
   activate(nodes) %>% 
-  ggraph(layout = 'fr', niter = 2000) +
+  ggraph(layout = 'fr') +
   geom_edge_link(arrow = arrow(length = unit(2, 'mm')), 
                  alpha = 0.1, colour="gray") + 
-  geom_node_point(aes(size = intermediacion)) +
-  geom_node_text(aes(label=name),  size=2)+
+  geom_node_point(aes(size = intermediacion),
+                  colour='orange') +
+  geom_node_text(aes(label=name),repel = TRUE,  size=2)+
   theme_graph(base_family = "sans")
 
 usi <- usi %>%
@@ -116,16 +119,14 @@ usi <- usi %>%
 
 usi %>%
   activate(nodes) %>% 
-  #filter(estado!="AK") %>% 
   ggraph(layout = 'graphopt', spring.constant = 0.25, charge = 0.05, niter = 300) + 
   geom_edge_link2(arrow = arrow(length = unit(2, 'mm')), alpha = 0.01, colour="black") + 
   geom_node_point(aes(size = central_eigen, colour=central_eigen)) +
-  geom_node_text(aes(label=name),  size=2)+
+  geom_node_text(aes(label=name),  repel = TRUE,size=2)+
   theme_graph(base_family = "sans") 
 
 usi %>%
   activate(nodes) %>% 
- #filter(estado!="AK") %>% 
   ggraph(layout = 'graphopt', spring.constant = 0.25, charge = 0.05, niter = 300) + 
   geom_edge_link2(arrow = arrow(length = unit(2, 'mm')), alpha = 0.01, colour="black") + 
   geom_node_point(aes(size = central_eigen, colour=central_eigen)) +
