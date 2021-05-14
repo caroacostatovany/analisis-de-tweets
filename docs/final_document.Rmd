@@ -43,7 +43,26 @@ Se descargaron alrededor de 80,000 *tweets* de los cuáles se obtuvimos **6XXXX 
 
 ## 4. Análisis de Redes
 
+Para hacer el análisis de redes del presente trabajo, utilizamos:
 
+- Los usuarios propietarios del *tweet*.
+- Los usuarios que fueron mencionados en el *tweet*.
+- Los usuarios que fueron retuiteados. 
+
+Es decir, tenemos dos redes dirigidas una que va del usuario propietario al usuario mencionado, y otra que va del usuario propietario al usuario que retuitea.
+
+#### Red dirigida de menciones
+
+- Nodos: 12,011
+- Aristas: 25,060
+
+#### Red dirigida de retuits
+
+- Nodos: 
+- Aristas:
+
+
+#### Comparación de redes
 
 ***
 
