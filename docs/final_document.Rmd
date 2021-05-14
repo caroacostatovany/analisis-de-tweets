@@ -56,10 +56,51 @@ Es decir, tenemos dos redes dirigidas una que va del usuario propietario al usua
 - Nodos: 12,011
 - Aristas: 25,060
 
+En la siguiente figura observamos un histograma de las aristas más repetidas, filtrando desde 5 para arriba:
+
+<img src="images/histogram_mencion.png" alt="drawing" width="500" height="400">
+
+En esta figura observamos que la frecuencia de aristas con menciones menores a 10, son muy grandes, por lo que utilizamos un filtro de menciones arriba de dicho número, para evitar tener conexiones con poca cantidad de menciones.
+
+La siguiente figura es una representación de la red que muestra las conecciones entre los nodos.  
+
+<img src="images/red_simple_mencion.png" alt="drawing">
+
+La siguiente figura presenta la red tomando en cuenta la medida de **intermediación**, que recordemos que nos proporciona una medida indicando qué tan único o importante es un nodo para conectar con otros nodos en la red. 
+
+<img src="images/red_intermediacion_mencion.png" alt="drawing">
+
+Medida de centralidad de eigenvector,
+
+<img src="images/red_centraleigen_mencion.png" alt="drawing" out.width = "50%">
+
+<img src="images/red_centraleigenpro_mencion.png" alt="drawing">
+
+
+
 #### Red dirigida de retuits
 
 - Nodos: 
 - Aristas:
+
+<img src="images/histogram_rt.png" alt="drawing" width="500" height="400">
+
+En esta figura observamos que la frecuencia de aristas con menciones menores a 10, son muy grandes, por lo que utilizamos un filtro de menciones arriba de dicho número, para evitar tener conexiones con poca cantidad de menciones.
+
+La siguiente figura es una representación de la red que muestra las conecciones entre los nodos.  
+
+<img src="images/red_simple_mencion_rt.png" alt="drawing">
+
+La siguiente figura presenta la red tomando en cuenta la medida de **intermediación**, que recordemos que nos proporciona una medida indicando qué tan único o importante es un nodo para conectar con otros nodos en la red. 
+
+<img src="images/red_intermediacion_mencion_rt.png" alt="drawing">
+
+Medida de centralidad de eigenvector,
+
+<img src="images/red_centraleigen_mencion_rt.png" alt="drawing" >
+
+<img src="images/red_centraleigenpro_mencion_rt.png" alt="drawing">
+
 
 
 #### Comparación de redes

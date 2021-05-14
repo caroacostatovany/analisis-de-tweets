@@ -48,9 +48,13 @@ vertices_agregados_users
 # observamos los más frecuentes
 vertices_agregados_users %>% 
   arrange(desc(freq_vert)) %>% 
-  filter(freq_vert>5) %>% 
+  filter(freq_vert>10) %>% 
   ggplot(aes(x=freq_vert)) +
-  geom_histogram(bins = 40,col='blue',fill='blue',alpha=0.7)
+  geom_histogram(bins = 50,col='blue',
+                 fill='blue',alpha=0.7)+
+  xlab('Frecuencia de aristas rt')+
+  ylab('')+
+  ggsave("~/Documents/EquiposGit/analisis-de-tweets/docs/images/histogram_rt.png")#,
 
 # obtenemos solo los nodos 
 nodos_users <- users_nodes_edges %>% 
@@ -64,7 +68,7 @@ users_nodes_edges_2 <- tbl_graph(nodes = nodos_users,
 users_nodes_edges_2
 
 # filtramos para los que tienen más frecuencia
-corte_freq_vert <- 10
+corte_freq_vert <- 20
 users_grandes <- users_nodes_edges_2 %>% 
   activate(edges) %>% 
   filter(freq_vert > corte_freq_vert) %>% 
@@ -73,12 +77,14 @@ users_grandes <- users_nodes_edges_2 %>%
 
 users_grandes %>% 
   activate(nodes) %>% 
-  #mutate(color_ca = ifelse(estado == "CA", "CA", "Otros")) %>% 
-  ggraph(layout = 'fr', niter = 2000) + 
-  geom_edge_link(arrow = arrow(length = unit(2, 'mm')), alpha = 0.1, colour="gray") + 
-  geom_node_point(aes(colour='blue'),alpha=0.5) +
-  geom_node_text(aes(label=name),  size=2)+
-  theme_graph(base_family = "sans")
+  ggraph(layout = 'fr') + 
+  geom_edge_link(arrow = arrow(length = unit(1, 'mm')), 
+                 alpha = 0.5, colour="gray") + 
+  geom_node_point(alpha=0.5,colour='turquoise3',size=3) +
+  geom_node_text(aes(label=name), repel = TRUE, size=2)+
+  theme_graph(base_family = "sans") +
+  ggsave("~/Documents/EquiposGit/analisis-de-tweets/docs/images/red_simple_mencion_rt.png")#,
+
 
 # Componentes
 compo_users <-  users_grandes %>% 
@@ -103,12 +109,15 @@ usi <- usi %>% activate(nodes) %>%
 # Graficamos
 usi %>% 
   activate(nodes) %>% 
-  ggraph(layout = 'fr', niter = 2000) +
+  ggraph(layout = 'fr') +
   geom_edge_link(arrow = arrow(length = unit(2, 'mm')), 
                  alpha = 0.1, colour="gray") + 
-  geom_node_point(aes(size = intermediacion)) +
-  geom_node_text(aes(label=name),  size=2)+
-  theme_graph(base_family = "sans")
+  geom_node_point(aes(size = intermediacion),
+                  colour='orange') +
+  geom_node_text(aes(label=name),repel = TRUE,  size=2)+
+  theme_graph(base_family = "sans")+
+  ggsave("~/Documents/EquiposGit/analisis-de-tweets/docs/images/red_intermediacion_mencion_rt.png")#,
+
 
 usi <- usi %>%
   activate(nodes) %>% 
@@ -117,21 +126,24 @@ usi <- usi %>%
 
 usi %>%
   activate(nodes) %>% 
-  #filter(estado!="AK") %>% 
   ggraph(layout = 'graphopt', spring.constant = 0.25, charge = 0.05, niter = 300) + 
-  geom_edge_link2(arrow = arrow(length = unit(2, 'mm')), alpha = 0.01, colour="black") + 
+  geom_edge_link2(arrow = arrow(length = unit(2, 'mm')), alpha = 0.05, colour="gray") + 
   geom_node_point(aes(size = central_eigen, colour=central_eigen)) +
-  geom_node_text(aes(label=name),  size=2)+
-  theme_graph(base_family = "sans") 
+  geom_node_text(aes(label=name),  repel = TRUE,size=2)+
+  theme_graph() +
+  scale_color_viridis()+
+  ggsave("~/Documents/EquiposGit/analisis-de-tweets/docs/images/red_centraleigen_mencion_rt.png")#,
 
 usi %>%
   activate(nodes) %>% 
-  #filter(estado!="AK") %>% 
   ggraph(layout = 'graphopt', spring.constant = 0.25, charge = 0.05, niter = 300) + 
   geom_edge_link2(arrow = arrow(length = unit(2, 'mm')), alpha = 0.01, colour="black") + 
   geom_node_point(aes(size = central_eigen, colour=central_eigen)) +
   geom_node_text(aes(label = name, alpha = central_eigen), repel = TRUE, size = 3, color = "black") +
-  theme_graph() 
+  scale_color_viridis()+
+  theme_graph() +
+  ggsave("~/Documents/EquiposGit/analisis-de-tweets/docs/images/red_centraleigenpro_mencion_rt.png")#,
+
 
 
 
