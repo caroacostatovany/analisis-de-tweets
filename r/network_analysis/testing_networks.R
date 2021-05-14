@@ -1,11 +1,15 @@
 library(tidyverse)
 library(tidygraph)
 library(ggraph)
-#library(network)
+
 rm(list=ls())
 
 # LIMPIEZA
-df <- read.csv('/Volumes/MemoriaEle/HeavyData/tweets_sismo/sismo_cdmx_sin_repeticiones_12052021.csv')
+df <- read.csv('/Volumes/MemoriaEle/HeavyData/tweets_sismo/tweets_limpios_2021_05_12.csv')
+
+dim(df)
+names(df)
+head(df[,c(1,2,4,5,6)])
 
 usuarios <- tibble(df$username, df$usuarios_mencionados)
 
