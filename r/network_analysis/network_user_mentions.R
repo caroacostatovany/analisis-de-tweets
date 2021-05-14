@@ -24,6 +24,7 @@ usuarios <- tibble(u_propietario =
 
 # quitamos espacios
 usuarios$u_mencionado <- str_replace_all(usuarios$u_mencionado, " ", "")
+usuarios$u_mencionado <- str_replace_all(usuarios$u_mencionado, ":", "")
 
 # RED: red dirigida
 
@@ -99,7 +100,6 @@ usi <- usi %>% activate(nodes) %>%
   mutate(intermediacion = centrality_betweenness())
 
 # Graficamos
-
 usi %>% 
   activate(nodes) %>% 
   ggraph(layout = 'fr', niter = 2000) +
@@ -109,11 +109,28 @@ usi %>%
   geom_node_text(aes(label=name),  size=2)+
   theme_graph(base_family = "sans")
 
+usi <- usi %>%
+  activate(nodes) %>% 
+  mutate(central_eigen = centrality_eigen())
 
 
+usi %>%
+  activate(nodes) %>% 
+  #filter(estado!="AK") %>% 
+  ggraph(layout = 'graphopt', spring.constant = 0.25, charge = 0.05, niter = 300) + 
+  geom_edge_link2(arrow = arrow(length = unit(2, 'mm')), alpha = 0.01, colour="black") + 
+  geom_node_point(aes(size = central_eigen, colour=central_eigen)) +
+  geom_node_text(aes(label=name),  size=2)+
+  theme_graph(base_family = "sans") 
 
-
-
+usi %>%
+  activate(nodes) %>% 
+ #filter(estado!="AK") %>% 
+  ggraph(layout = 'graphopt', spring.constant = 0.25, charge = 0.05, niter = 300) + 
+  geom_edge_link2(arrow = arrow(length = unit(2, 'mm')), alpha = 0.01, colour="black") + 
+  geom_node_point(aes(size = central_eigen, colour=central_eigen)) +
+  geom_node_text(aes(label = name, alpha = central_eigen), repel = TRUE, size = 3, color = "black") +
+  theme_graph() 
 
 
 
