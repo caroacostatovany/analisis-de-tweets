@@ -5,8 +5,9 @@ output: html_notebook
 ---
 
 ```{r}
+library(ggplot2)
 library(tidyverse)
-tweets <- read_csv('../data/tweets_limpios_2021_05_13_2.csv')
+tweets <- read_csv('../data/tweets_limpios_2021_05_15.csv')
 
 sim_jaccard <- function(a, b){
     length(intersect(a, b)) / length(union(a, b))
@@ -75,161 +76,29 @@ extraer_pares <- function(cubetas_df, cubeta, docs, textos = NULL, names = NULL)
 tweets_texto <- tweets$texto_limpio
 ```
 
-```{r}
 
+```{r}
 set.seed(20210512)
-hash_f <- map(1:50, ~ generar_hash())
-tejas_tbl <- crear_tejas_str(tweets_texto[1:65489], k = 5)
+hash_f <- map(1:12, ~ generar_hash())
+tejas_tbl <- crear_tejas_str(tweets_texto, k = 6)
 firmas_tw <- calcular_firmas_doc(tejas_tbl, hash_f)
-```
-
-Cuáles son similares al primer tweet:
-```{r}
-similitud_approx <- 
-  map_dbl(1:length(firmas_tw$firma), 
-    ~ mean(firmas_tw$firma[[.x]] == firmas_tw$firma[[1]]))
-indices <- which(similitud_approx > 0.4)
-length(indices)
-```
-
-```{r}
-similares <- tibble(tweet = tweets_texto[indices],
-           sim_approx = similitud_approx[indices],
-           usuario = tweets$username[indices],
-           retweet = tweets$retweet_user[indices]) %>%
-    arrange(sim_approx)
-
-DT::datatable(sample_n(similares, 25))
-```
-
-```{r}
-tejas_orig <- tejas_tbl$tejas[[1]]
-candidatos <- filter(tejas_tbl, doc_id %in% indices) %>% 
-  mutate(similitud = map_dbl(tejas, ~ sim_jaccard(.x, tejas_orig)))
-DT::datatable(candidatos %>% arrange(similitud) %>% 
-                select(doc_id, similitud) %>% 
-                mutate_if(is.numeric, ~ round(.x, 3)))
-```
-Buscando pares similares:
-
-```{r}
-pares <- crossing(firmas_tw, 
-  firmas_tw %>% rename(doc_id_1 = doc_id, firma_1 = firma)) %>%
-  filter(doc_id < doc_id_1)
-pares  <- pares %>% mutate(sim = map2_dbl(firma_1, firma, ~ mean(.x == .y)))
-```
-```{r}
-pares <- pares %>% arrange(desc(sim))
-pares
-```
-Con cubetas
-```{r}
-firmas_2 <- firmas_tw %>% 
-    # unir los minhashes en un una cadena
-    mutate(cubeta = map_chr(firma, paste, collapse ="/")) %>%
-    select(-firma)
-firmas_2
-```
-Agrupamos por cubetas
-```{r}
-cubetas_df <- firmas_2 %>% group_by(cubeta) %>% 
-    summarise(docs = list(doc_id), .groups = "drop") %>% 
-    mutate(n_docs = map_int(docs, length)) 
-```
-
-Filtramos las cubetas con más de un elemento:
-```{r}
-cubetas_df <- cubetas_df %>% filter(n_docs > 1)
-cubetas_df
-```
-Y los candidatos de alta similud se extraen de estas cubetas que tienen más de 1 elemento. Son:
-```{r}
-cubetas_df$docs
-
-```
-```{r}
-extraer_pares <- function(cubetas_df, cubeta, docs, textos = NULL){
-   enq_cubeta <- enquo(cubeta)
-   enq_docs <- enquo(docs)
-   pares <- cubetas_df %>% 
-    group_by(!!enq_cubeta) %>% 
-    mutate(pares = map(!!enq_docs, ~ combn(sort(.x), 2, simplify = FALSE))) %>%
-    select(!!enq_cubeta, pares) %>% unnest_legacy %>% 
-    mutate(a = map_int(pares, 1)) %>% 
-    mutate(b = map_int(pares, 2)) %>% 
-    select(-pares) %>% ungroup %>% select(-!!enq_cubeta) %>% 
-    unique #quitar pares repetidos
-   if(!is.null(textos)){
-       pares <- pares %>% mutate(texto_a = textos[a], texto_b = textos[b])
-   }
-   pares %>% ungroup 
-}
-candidatos <- extraer_pares(cubetas_df, cubeta, docs, textos = tweets_texto)
-#DT::datatable(candidatos)
-```
-
-
-```{r}
-particion <- split(1:6, ceiling(1:6 / 2))
-separar_cubetas_fun <- function(particion){
-    function(firma){
-        map_chr(particion, function(x){
-            prefijo <- paste0(x, collapse = '')
-            cubeta <- paste(firma[x], collapse = "/")
-            paste(c(prefijo, cubeta), collapse = '|')
-        })
-    }
-}
-sep_cubetas <- separar_cubetas_fun(particion)
+particion <- split(1:12, ceiling(1:12 / 7))
+particion
+sep_cubetas <- separar_cubetas_fun(particion) 
 sep_cubetas(firmas_tw$firma[[1]])
+cubetas_tbl <- firmas_tw %>%
+    mutate(cubeta = map(firma, sep_cubetas)) %>%
+    unnest_legacy(cubeta) %>% 
+    group_by(cubeta) %>% 
+    summarise(docs = list(doc_id), n = length(doc_id)) %>%
+    arrange(desc(n))
+cubetas_tbl %>% arrange(desc(n)) %>% head(10)
 ```
-
 
 ```{r}
-firmas_3 <- firmas_tw %>% 
-    mutate(cubeta = map(firma, sep_cubetas)) %>% 
-    select(-firma) %>% unnest_legacy
-firmas_3
+ggplot() + geom_bar(data=cubetas_tbl, aes(x=n)) + ylim(0,nrow(cubetas_tbl %>% filter(., n==1))) + xlim(0,100)
+nrow(cubetas_tbl %>% filter(., n==1)) / nrow(cubetas_tbl) * 100
 ```
-
-Agrupamos por cubetas:
-```{r}
-cubetas_df <- firmas_3 %>% group_by(cubeta) %>% 
-    summarise(docs = list(doc_id), .groups = "drop") %>% 
-    mutate(n_docs = map_int(docs, length)) 
-```
-
-Filtramos las cubetas con más de un elemento:
-```{r}
-cubetas_df <- cubetas_df %>% filter(n_docs > 1)
-cubetas_df
-```
-
-
-Pares
-```{r}
-pares_candidatos <- extraer_pares(cubetas_df, cubeta, docs, textos = tweets_texto) %>% 
-                  arrange(texto_a)
-#DT::datatable(pares_candidatos)
-```
-
-Ahora podemos calcular similitud exacta y agrupar:
-```{r}
-pares_scores <- pares_candidatos %>% 
-  mutate(score = map2_dbl(texto_a, texto_b,
-  ~ sim_jaccard(calcular_tejas(.x, 5), calcular_tejas(.y, 5))))
-#DT::datatable(pares_scores)
-```
-
-Podemos hacer clustering con las similitudes de Jaccard:
-```{r}
-pares_dis <- pares_scores %>% select(a, b, score) 
-pares_g <- igraph::graph_from_data_frame(pares_dis, directed = FALSE)
-wc <- igraph::cluster_label_prop(pares_g, weights = pares_g$score)
-wc
-```
-
-
 
 Podemos deduplicar tweets
 ```{r}
@@ -253,13 +122,14 @@ length(tw_dedup)
 length(tw_dedup_2)
 ```
 
+
 y hacer todo de nuevo..
 ```{r}
 set.seed(20210512)
 hash_f <- map(1:12, ~ generar_hash())
-tejas_tbl <- crear_tejas_str(tw_dedup, k = 5)
+tejas_tbl <- crear_tejas_str(tw_dedup, k = 6)
 firmas_tw <- calcular_firmas_doc(tejas_tbl, hash_f)
-particion <- split(1:12, ceiling(1:12 / 6))
+particion <- split(1:12, ceiling(1:12 / 7))
 particion
 sep_cubetas <- separar_cubetas_fun(particion) 
 sep_cubetas(firmas_tw$firma[[1]])
@@ -273,19 +143,25 @@ cubetas_tbl %>% arrange(desc(n)) %>% head(10)
 ```
 
 ```{r}
-# Los textos en la cubeta más grande (15 documentos)
-DT::datatable(cubetas_tbl$docs[[1]] %>% data.frame(tweet=tw_dedup[.],usuario=attr(tw_dedup_2[.],'names')))
+ggplot() + geom_bar(data=cubetas_tbl, aes(x=n)) + ylim(0,nrow(cubetas_tbl %>% filter(., n==1)))
+nrow(cubetas_tbl %>% filter(., n==1)) / nrow(cubetas_tbl) * 100
+
 ```
 
 ```{r}
-# Los textos en la segunda cubeta más grande (13 documentos)
+# Los textos en la cubeta más grande 
 DT::datatable(cubetas_tbl$docs[[2]] %>% data.frame(tweet=tw_dedup[.],usuario=attr(tw_dedup_2[.],'names')))
 ```
 
+```{r}
+# Los textos en la segunda cubeta más grande 
+DT::datatable(cubetas_tbl$docs[[3]] %>% data.frame(tweet=tw_dedup[.],usuario=attr(tw_dedup_2[.],'names')))
+```
+
 
 ```{r}
-# Los textos en la tercer cubeta más grande (11 documentos)
-DT::datatable(cubetas_tbl$docs[[3]]  %>% data.frame(tweet=tw_dedup[.],usuario=attr(tw_dedup_2[.],'names')))
+# Los textos en la tercer cubeta más grande 
+DT::datatable(cubetas_tbl$docs[[13]]  %>% data.frame(tweet=tw_dedup[.],usuario=attr(tw_dedup_2[.],'names')))
 ```
 
 
