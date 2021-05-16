@@ -3,10 +3,11 @@ title: 'Análisis de Twitter en periodos de emergencia: Sismo 19 del septiembre 
   2017, CDMX'
 author: "Carolina Acosta, Eduardo Moreno & Elena Villalobos"
 output:
-  pdf_document: default
   html_document:
     theme: lumen
     hightlight: kate
+  pdf_document: default
+always_allow_html: true
 ---
 ***
 ***
@@ -65,11 +66,16 @@ El objetivo de utilizar Locality Sensitive Hashing (LSH) en este proyecto, es ag
 
 ```{r library, include=FALSE}
 library(tidyverse)
-library(ggplot2)
+library(ggplot2) 
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning=FALSE, 
+                      fig.align = 'center', 
+                      #fig.width = 5, fig.height=3, 
+                      cache = TRUE)
+theme_set(theme_minimal(base_size = 14))
 ```
 
 ```{r functions, include=FALSE}
-
 sim_jaccard <- function(a, b){
     length(intersect(a, b)) / length(union(a, b))
 }
@@ -138,7 +144,8 @@ extraer_pares <- function(cubetas_df, cubeta, docs, textos = NULL, names = NULL)
 Empezemos el análisis de *tweets* incluyendo *retweets*:
 
 ```{r lectura, message=FALSE, warning=FALSE}
-tweets <- read_csv('../data/tweets_limpios_2021_05_15.csv')
+#tweets <- read_csv('../data/tweets_limpios_2021_05_15.csv')
+tweets <- read.csv('/Volumes/MemoriaEle/HeavyData/tweets_sismo/tweets_limpios_2021_05_12.csv')
 tweets_texto <- tweets$texto_limpio
 ```
 
@@ -153,7 +160,7 @@ firmas_tw <- calcular_firmas_doc(tejas_tbl, hash_f)
 
 Una vez obtenida la firma de cada documento y creamos una cubeta para cada firma diferente, las firmas que se encuentran en la misma cubeta son documentos candidatos a ser similares. Se ha decidido capturar pares de documentos con similitud más baja y así agrupar textos con algún grupo de **7** minhashes iguales.
 
-```{r }
+```{r}
 particion <- split(1:12, ceiling(1:12 / 7))
 sep_cubetas <- separar_cubetas_fun(particion) 
 #sep_cubetas(firmas_tw$firma[[1]])
@@ -176,8 +183,7 @@ cubetas_tbl_2 <- filter(cubetas_tbl, n>10)
 
 ggplot() + 
   geom_line(data=cubetas_tbl_2, aes(x=as.numeric(row.names(cubetas_tbl_2)), y=n), color="#10D6C1") + 
-  labs(title="No. de documentos por cubeta", y="no. de documentos", x="id cubeta") +
-  theme_minimal()
+  labs(title="No. de documentos por cubeta", y="no. de documentos", x="id cubeta")
 ```
 Como vimos que aproximadamente el 40% de nuestros datos son *retweets* y no pudimos obtener mucha información de este análisis; por lo que se ha realizado el mismo proceso pero removiendo los *tweets* duplicados; de 65,489 *tweets* nos quedaron 15,101.
 
@@ -229,8 +235,7 @@ cubetas_tbl_2 <- filter(cubetas_tbl, n>2)
 
 ggplot() + 
   geom_line(data=cubetas_tbl_2, aes(x=as.numeric(row.names(cubetas_tbl_2)), y=n), color="#10D6C1") + 
-  labs(title="No. de documentos por cubeta", y="no. de documentos", x="id cubeta") +
-  theme_minimal()
+  labs(title="No. de documentos por cubeta", y="no. de documentos", x="id cubeta") 
 ```
 
 Si evaluamos una cubeta con varios documentos, por ejemplo la segunda cubeta, podemos observar que los textos a pesar de que tienen diferentes cifras el contenido es muy parecido y hace referencia a albergues donde pernoctaron las personas tras el sismo.
@@ -272,25 +277,159 @@ Es decir, tenemos dos redes dirigidas una que va del usuario propietario al usua
 - Nodos: 12,011
 - Aristas: 25,060
 
-En la siguiente figura observamos un histograma de las aristas más repetidas, filtrando desde 5 para arriba:
+```{r, include=FALSE}
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(igraphdata)
+library(viridis)
 
-<img src="images/histogram_mencion.png" alt="drawing" width="500" height="400">
+# un poco de limpieza
+usuarios <- tibble(tweets$username, tweets$usuarios_mencionados)
 
-En esta figura observamos que la frecuencia de aristas con menciones menores a 10, son muy grandes, por lo que utilizamos un filtro de menciones arriba de dicho número, para evitar tener conexiones con poca cantidad de menciones.
+# hacemos una separación de todos los usuarios mencionados
+# que están en un solo renglón
+s <- strsplit(tweets$usuarios_mencionados, split =',')
+usuarios <- tibble(u_propietario = 
+                     rep(tweets$username, sapply(s, length)),
+                   u_mencionado = unlist(s))
+
+# quitamos espacios
+usuarios$u_mencionado <- str_replace_all(usuarios$u_mencionado, " ", "")
+usuarios$u_mencionado <- str_replace_all(usuarios$u_mencionado, ":", "")
+```
+
+Construimos la red:
+
+```{r}
+# tbl_graph identifica los nodos y los vertices
+users_nodes_edges <- usuarios %>% as_tbl_graph()
+users_nodes_edges
+
+# obtenemos los vertices
+vertices_users <- users_nodes_edges %>% 
+  activate(edges) %>% 
+  select(to, from) %>% 
+  as_tibble()
+
+# agregamos los vertices por frecuencia
+vertices_agregados_users <- vertices_users %>% 
+  group_by(to, from) %>% 
+  summarise(freq_vert = n())
+```
+
+Observamos un histograma de las aristas más repetidas, filtrando desde 5 para arriba. En esta figura observamos que la frecuencia de aristas con menciones menores a 10, son muy grandes, por lo que utilizamos un filtro de menciones arriba de dicho número, para evitar tener conexiones con poca cantidad de menciones.
+
+```{r, echo=FALSE, fig.dim=c(5,4)}
+vertices_agregados_users %>% 
+  arrange(desc(freq_vert)) %>% 
+  filter(freq_vert>5) %>% 
+  ggplot(aes(x=freq_vert)) +
+  geom_histogram(bins = 50,col='blue',
+                 fill='blue',alpha=0.7)+
+  xlab('Frecuencia de aristas')+
+  ylab('')
+```
+
+
+
+```{r}
+# obtenemos solo los nodos 
+nodos_users <- users_nodes_edges %>% 
+  activate(nodes) %>% 
+  as_tibble() 
+nodos_users
+
+# volvemos a armar la red
+users_nodes_edges_2 <- tbl_graph(
+  nodes = nodos_users, 
+  edges = vertices_agregados_users) 
+users_nodes_edges_2
+
+# filtramos para los que tienen más frecuencia
+corte_freq_vert <- 10
+users_grandes <- users_nodes_edges_2 %>% 
+  activate(edges) %>% 
+  filter(freq_vert > corte_freq_vert) %>% 
+  activate(nodes) %>% 
+  filter(!node_is_isolated())
+```
+
 
 La siguiente figura es una representación de la red que muestra las conecciones entre los nodos.  
 
-<img src="images/red_simple_mencion.png" alt="drawing">
+```{r, echo=FALSE, fig.dim=c(8,7)}
+users_grandes %>% 
+  activate(nodes) %>% 
+  ggraph(layout = 'fr') + 
+  geom_edge_link(arrow = arrow(length = unit(1, 'mm')), 
+                 alpha = 0.5, colour="gray") + 
+  geom_node_point(alpha=0.5,colour='turquoise3',size=3) +
+  geom_node_text(aes(label=name), repel = TRUE, size=2)+
+  theme_graph(base_family = "sans")
+```
+
+Ahora obtenemos la medida de intermediación:
+
+```{r}
+# Componentes
+compo_users <-  users_grandes %>% 
+  activate(nodes) %>% 
+  mutate(componente = group_components())
+
+compo_users %>% 
+  as_tibble %>% 
+  group_by(componente) %>% 
+  tally()
+
+# filtramos por componente conexa más grande
+usi <- users_grandes %>% 
+  activate(nodes) %>% 
+  mutate(componente = group_components()) %>% 
+  filter(componente == 1)
+
+# Calculamos la intermediación
+usi <- usi %>% activate(nodes) %>% 
+  mutate(intermediacion = centrality_betweenness())
+```
+
 
 La siguiente figura presenta la red tomando en cuenta la medida de **intermediación**, que recordemos que nos proporciona una medida indicando qué tan único o importante es un nodo para conectar con otros nodos en la red. 
 
-<img src="images/red_intermediacion_mencion.png" alt="drawing">
+```{r, echo=FALSE, fig.dim=c(8,7)}
+# Graficamos
+usi %>% 
+  activate(nodes) %>% 
+  ggraph(layout = 'fr') +
+  geom_edge_link(arrow = arrow(length = unit(2, 'mm')), 
+                 alpha = 0.1, colour="gray") + 
+  geom_node_point(aes(size = intermediacion),
+                  colour='orange') +
+  geom_node_text(aes(label=name),repel = TRUE,  size=2)+
+  theme_graph(base_family = "sans")
+```
 
-Medida de centralidad de eigenvector,
+Medida de centralidad de eigenvector.
 
-<img src="images/red_centraleigen_mencion.png" alt="drawing" out.width = "50%">
+```{r}
+usi <- usi %>%
+  activate(nodes) %>% 
+  mutate(central_eigen = centrality_eigen())
+```
 
-<img src="images/red_centraleigenpro_mencion.png" alt="drawing">
+
+
+```{r, echo=FALSE, fig.dim=c(8,6)}
+usi %>%
+  activate(nodes) %>% 
+  ggraph(layout = 'graphopt', spring.constant = 0.25, charge = 0.05, niter = 300) + 
+  geom_edge_link2(arrow = arrow(length = unit(2, 'mm')), alpha = 0.2, colour="gray") + 
+  geom_node_point(aes(size = central_eigen, colour=central_eigen)) +
+  geom_node_text(aes(label=name),  repel = TRUE,size=2)+
+  theme_graph() +
+  scale_color_viridis()
+```
+
 
 
 
@@ -299,25 +438,154 @@ Medida de centralidad de eigenvector,
 - Nodos: 
 - Aristas:
 
-<img src="images/histogram_rt.png" alt="drawing" width="500" height="400">
+```{r, include=FALSE}
+usuarios <- tibble(tweets$username, tweets$retweet_user)
+# hacemos una separación de todos los usuarios mencionados
+# que están en un solo renglón
+s <- strsplit(tweets$retweet_user, split =',')
+usuarios <- tibble(u_propietario = 
+                     rep(tweets$username, sapply(s, length)),
+                   u_retuiteado = unlist(s))
 
-En esta figura observamos que la frecuencia de aristas con menciones menores a 10, son muy grandes, por lo que utilizamos un filtro de menciones arriba de dicho número, para evitar tener conexiones con poca cantidad de menciones.
+# quitamos espacios
+usuarios$u_retuiteado <- str_replace_all(usuarios$u_retuiteado, " ", "")
+usuarios$u_retuiteado <- str_replace_all(usuarios$u_retuiteado, ":", "")
+```
+
+Construimos la red:
+
+```{r, include=FALSE}
+# tbl_graph identifica los nodos y los vertices
+users_nodes_edges <- usuarios %>% as_tbl_graph()
+users_nodes_edges
+```
+
+Realizamos un proceso muy similar para los usuarios con menciones, por lo que acontinuación sólo se colocarán los gráficos. 
+
+```{r, include=FALSE}
+# obtenemos los vertices
+vertices_users <- users_nodes_edges %>% 
+  activate(edges) %>% 
+  select(to, from) %>% 
+  as_tibble()
+
+# agregamos los vertices por frecuencia
+vertices_agregados_users <- vertices_users %>% 
+  group_by(to, from) %>% 
+  summarise(freq_vert = n())
+```
+
+Observamos un histograma de las aristas más repetidas, filtrando desde 5 para arriba. En esta figura observamos que la frecuencia de aristas con menciones menores a 10, son muy grandes, por lo que utilizamos un filtro de menciones arriba de dicho número, para evitar tener conexiones con poca cantidad de menciones.
+
+```{r, echo=FALSE, fig.dim=c(5,4)}
+vertices_agregados_users %>% 
+  arrange(desc(freq_vert)) %>% 
+  filter(freq_vert>5) %>% 
+  ggplot(aes(x=freq_vert)) +
+  geom_histogram(bins = 50,col='blue',
+                 fill='blue',alpha=0.7)+
+  xlab('Frecuencia de aristas')+
+  ylab('')
+```
+
+Filtrado de 15. 
+
+```{r, include=FALSE}
+# obtenemos solo los nodos 
+nodos_users <- users_nodes_edges %>% 
+  activate(nodes) %>% 
+  as_tibble() 
+nodos_users
+
+# volvemos a armar la red
+users_nodes_edges_2 <- tbl_graph(
+  nodes = nodos_users, 
+  edges = vertices_agregados_users) 
+users_nodes_edges_2
+
+# filtramos para los que tienen más frecuencia
+corte_freq_vert <- 15
+users_grandes <- users_nodes_edges_2 %>% 
+  activate(edges) %>% 
+  filter(freq_vert > corte_freq_vert) %>% 
+  activate(nodes) %>% 
+  filter(!node_is_isolated())
+```
+
 
 La siguiente figura es una representación de la red que muestra las conecciones entre los nodos.  
 
-<img src="images/red_simple_mencion_rt.png" alt="drawing">
+```{r, echo=FALSE, fig.dim=c(8,7)}
+users_grandes %>% 
+  activate(nodes) %>% 
+  ggraph(layout = 'fr') + 
+  geom_edge_link(arrow = arrow(length = unit(1, 'mm')), 
+                 alpha = 0.5, colour="gray") + 
+  geom_node_point(alpha=0.5,colour='turquoise3',size=3) +
+  geom_node_text(aes(label=name), repel = TRUE, size=2)+
+  theme_graph(base_family = "sans")
+```
+
+Ahora obtenemos la medida de intermediación:
+
+```{r, include=FALSE}
+# Componentes
+compo_users <-  users_grandes %>% 
+  activate(nodes) %>% 
+  mutate(componente = group_components())
+
+compo_users %>% 
+  as_tibble %>% 
+  group_by(componente) %>% 
+  tally()
+
+# filtramos por componente conexa más grande
+usi <- users_grandes %>% 
+  activate(nodes) %>% 
+  mutate(componente = group_components()) %>% 
+  filter(componente == 1)
+
+# Calculamos la intermediación
+usi <- usi %>% activate(nodes) %>% 
+  mutate(intermediacion = centrality_betweenness())
+```
+
 
 La siguiente figura presenta la red tomando en cuenta la medida de **intermediación**, que recordemos que nos proporciona una medida indicando qué tan único o importante es un nodo para conectar con otros nodos en la red. 
 
-<img src="images/red_intermediacion_mencion_rt.png" alt="drawing">
+```{r, echo=FALSE, fig.dim=c(8,7)}
+# Graficamos
+usi %>% 
+  activate(nodes) %>% 
+  ggraph(layout = 'fr') +
+  geom_edge_link(arrow = arrow(length = unit(2, 'mm')), 
+                 alpha = 0.1, colour="gray") + 
+  geom_node_point(aes(size = intermediacion),
+                  colour='orange') +
+  geom_node_text(aes(label=name),repel = TRUE,  size=2)+
+  theme_graph(base_family = "sans")
+```
 
-Medida de centralidad de eigenvector,
+Medida de centralidad de eigenvector.
 
-<img src="images/red_centraleigen_mencion_rt.png" alt="drawing" >
+```{r, include=FALSE}
+usi <- usi %>%
+  activate(nodes) %>% 
+  mutate(central_eigen = centrality_eigen())
+```
 
-<img src="images/red_centraleigenpro_mencion_rt.png" alt="drawing">
 
 
+```{r, echo=FALSE, fig.dim=c(8,6)}
+usi %>%
+  activate(nodes) %>% 
+  ggraph(layout = 'graphopt', spring.constant = 0.25, charge = 0.05, niter = 300) + 
+  geom_edge_link2(arrow = arrow(length = unit(2, 'mm')), alpha = 0.2, colour="gray") + 
+  geom_node_point(aes(size = central_eigen, colour=central_eigen)) +
+  geom_node_text(aes(label=name),  repel = TRUE,size=2)+
+  theme_graph() +
+  scale_color_viridis()
+```
 
 #### Comparación de redes
 
