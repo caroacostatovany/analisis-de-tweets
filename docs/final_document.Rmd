@@ -1,7 +1,9 @@
 ---
-title: 'Análisis de Twitter en periodos de emergencia: Sismo 19 del septiembre del 2017, CDMX'
-author: "Carorila Acosta, Eduardo Moreno & Elena Villalobos"
-output: 
+title: 'Análisis de Twitter en periodos de emergencia: Sismo 19 del septiembre del
+  2017, CDMX'
+author: "Carolina Acosta, Eduardo Moreno & Elena Villalobos"
+output:
+  pdf_document: default
   html_document:
     theme: lumen
     hightlight: kate
@@ -19,27 +21,241 @@ Estas herramientas nos pueden ayudar a entender de manera amplia, el comportamie
 
 ### 1.1. Objetivo
 
-El objetivo del presente trabajo, es estudiar el comportamiento de *Twitter* en el sismo del 19 de septiembre del 2017 en la Ciudad de México. Este estudio se realizará con herramientas de análisis de texto, similitud de Jaccard y análisis de redes.
+El objetivo del presente trabajo, es estudiar el comportamiento de la sociedad a través de la red social *Twitter* en un evento en específico como sismo del 19 de septiembre del 2017 en la Ciudad de México. Este estudio se realizará con herramientas de análisis de texto, Locality Sensitive Hashing y análisis de redes.
 
 ### 1.2. Metodología
 
-Se realizó un *scrapping* de *Twitter*, obteniendo una llave lallala. 
+Se realizó un *scrapping* de *tweets* desde la API de *Twitter*, obteniendo tokens y llaves secretas para acceder como investigador académico y así poder obtener *tweets* históricos con el endpoint: "https://api.twitter.com/2/tweets/search/all"
 
-Se descargaron alrededor de 80,000 *tweets* de los cuáles se obtuvimos **6XXXX observaciones únicas**. El contenido de la base tiene las siguientes columnas:
+Se descargaron alrededor de 80,000 *tweets* de los cuáles se obtuvimos **65,489 tweets con clave única, incluyendo retweets**. Los datos extraídos son del 11 de septiembre de 2017 al 31 de diciembre de 2017; utilizando como referencia de palabras "sismo cdmx", "#MexicoNosNecesita", "ayuda sismo" y "19s".
 
-- created_at
-- id
-- author_id
-- conversation_id
-- referenced_tweets
-- reply_to_user_id
-- entities
-- text
-- username
+El contenido de la base tiene las siguientes columnas:
+
+- created_at: la fecha en la que se publicó el *tweet*.
+- id: ID único del *tweet*.
+- author_id: ID del usuario del *tweet*.
+- reply_to_user_id: diccionario del tipo de *tweet* (si fue *retweet*) y del ID del usuario a quien hizo *retweet*.
+- entities: diccionario de nombres de usuario, *hashtags* y URLs mencionados en el *tweet*.
+- text: texto del *tweet*.
+- username: nombre de usuario que publicó el *tweet*.
 
 ## 2. Limpieza y análisis de texto
 
-## 3. Similitud de Jaccard
+Antes de iniciar cualquier tipo de análisis decidimos limpiar el texto del *tweet* y agregar dos columnas para que el análisis de redes fuera más sencillo de realizar, las cuales fueron: nombre de usuario a quien se le hizo *retweet* y nombres de usuarios mencionados en el *tweet*. En las tareas de limpieza y agregado de columnas se utilizaron expresiones regulares.
+
+Iniciamos con la agregación de columnas:
+
+- Nombre de usuario del *retweet*: Se obtuvo a partir del *tweet* extrayendo el usuario mencionado cuando existía "RT @" en el *tweet*.
+- Nombres de usuarios mencionados: Se obtuvieron todas las menciones en el *tweet* y se remueve el nombre de usuario del *retweet* si existe.
+
+Posteriormente, realizamos la limpieza del texto del *tweet* donde las tareas fueron las siguientes:
+
+- Remover:
+  - Acentos
+  - Caracteres especiales como "’"?¡!*,.():;-_¿", a
+  - La secuencia "RT" haciendo referencia al retweet
+  - Menciones de usuarios
+  - URLs especificadas como www. o https:
+  - Espacios extras
+  
+## 3. Minhashing - Locality Sensitive Hashing 
+
+El objetivo de utilizar Locality Sensitive Hashing (LSH) en este proyecto, es agrupar colecciones de los *tweets* obtenidos que tienen alta similitud. Construimos el LSH basándonos en las firmas de minhash, y así asignar el documento en una cubeta dependiendo de ésta.
+
+
+```{r library, include=FALSE}
+library(tidyverse)
+library(ggplot2)
+```
+
+```{r functions, include=FALSE}
+
+sim_jaccard <- function(a, b){
+    length(intersect(a, b)) / length(union(a, b))
+}
+
+calcular_tejas <- function(x, k = 2){
+  tokenizers::tokenize_character_shingles(x, n = k, lowercase = FALSE,
+    simplify = TRUE, strip_non_alpha = FALSE)
+}
+
+generar_hash <- function(){
+    r <- as.integer(stats::runif(1, 1, 2147483647))
+    funcion_hash <- function(shingles){
+        digest::digest2int(shingles, seed =r) 
+    }
+    funcion_hash
+}
+
+crear_tejas_str <- function(textos, k = 4){
+    num_docs <- length(textos)
+    tejas <- calcular_tejas(textos, k = k)
+    tejas_df <- tibble(doc_id = 1:num_docs, tejas = tejas)
+    tejas_df
+}
+
+calcular_firmas_doc <- function(tejas_df, hash_funs){
+    # Calcula firmas por documento
+    num_docs <- nrow(tejas_df)
+    num_hashes <- length(hash_funs)
+    tejas <- tejas_df$tejas
+    firmas <- vector("list", num_docs)
+    # este se puede paralelizar facilmente:
+    for(i in 1:num_docs){
+        firmas[[i]] <- map_dbl(hash_funs, ~ min(.x(tejas[[i]])))
+    }
+    tibble(doc_id = 1:num_docs, firma = firmas)
+}
+
+separar_cubetas_fun <- function(particion){
+    function(firma){
+        map_chr(particion, function(x){
+            prefijo <- paste0(x, collapse = '')
+            cubeta <- paste(firma[x], collapse = "/")
+            paste(c(prefijo, cubeta), collapse = '|')
+        })
+    }
+}
+
+extraer_pares <- function(cubetas_df, cubeta, docs, textos = NULL, names = NULL){
+   enq_cubeta <- enquo(cubeta)
+   enq_docs <- enquo(docs)
+   pares <- cubetas_df %>% 
+    group_by(!!enq_cubeta) %>% 
+    mutate(pares = map(!!enq_docs, ~ combn(sort(.x), 2, simplify = FALSE))) %>%
+    select(!!enq_cubeta, pares) %>% unnest_legacy %>% 
+    mutate(a = map_int(pares, 1)) %>% 
+    mutate(b = map_int(pares, 2)) %>% 
+    select(-pares) %>% ungroup %>% select(-!!enq_cubeta) %>% 
+    unique #quitar pares repetidos
+   if(!is.null(textos)){
+       pares <- pares %>% mutate(usuario_a = names[a], usuario_b = names[b], texto_a = textos[a], texto_b = textos[b])
+   }
+   pares %>% ungroup 
+}
+```
+
+Empezemos el análisis de *tweets* incluyendo *retweets*:
+
+```{r lectura, message=FALSE, warning=FALSE}
+tweets <- read_csv('../data/tweets_limpios_2021_05_15.csv')
+tweets_texto <- tweets$texto_limpio
+```
+
+Creamos el hash (la firma) a partir de las tejas, de las cuales se ha decidido utilizar 6 caracteres para crear las tejas y así mapear cada teja a un entero.
+
+```{r}
+set.seed(20210512)
+hash_f <- map(1:12, ~ generar_hash())
+tejas_tbl <- crear_tejas_str(tweets_texto, k = 6)
+firmas_tw <- calcular_firmas_doc(tejas_tbl, hash_f)
+```
+
+Una vez obtenida la firma de cada documento y creamos una cubeta para cada firma diferente, las firmas que se encuentran en la misma cubeta son documentos candidatos a ser similares. Se ha decidido capturar pares de documentos con similitud más baja y así agrupar textos con algún grupo de **7** minhashes iguales.
+
+```{r }
+particion <- split(1:12, ceiling(1:12 / 7))
+sep_cubetas <- separar_cubetas_fun(particion) 
+#sep_cubetas(firmas_tw$firma[[1]])
+cubetas_tbl <- firmas_tw %>%
+    mutate(cubeta = map(firma, sep_cubetas)) %>%
+    unnest_legacy(cubeta) %>% 
+    group_by(cubeta) %>% 
+    summarise(docs = list(doc_id), n = length(doc_id)) %>%
+    arrange(desc(n))
+
+# % de cubetas con documentos únicos
+nrow(cubetas_tbl %>% filter(., n==1)) / nrow(cubetas_tbl) * 100
+cubetas_tbl %>% arrange(desc(n)) %>% head(10)
+```
+En la tabla anterior podemos observar que obtuvimos 25,957 cubetas de las cuales la más grande contiene 2,333 documentos, esto nos indica que tenemos muchos *tweets* parecidos o iguales. Si hacemos un análisis básico , véase la siguiente gráfica, podemos obtener que aproximadamente el 60% de nuestras cubetas contienen un único documentos, por lo que podemos suponer que el 60% de los usuarios hablan de tópicos diferentes acerca del sismo del 2017 y el 40% restante son *retweets* o copias de los *tweets*.
+
+```{r}
+# filtramos las cubetas que tienen menos de 10 documentos para ejercicio visual de la gráfica
+cubetas_tbl_2 <- filter(cubetas_tbl, n>10)
+
+ggplot() + 
+  geom_line(data=cubetas_tbl_2, aes(x=as.numeric(row.names(cubetas_tbl_2)), y=n), color="#10D6C1") + 
+  labs(title="No. de documentos por cubeta", y="no. de documentos", x="id cubeta") +
+  theme_minimal()
+```
+Como vimos que aproximadamente el 40% de nuestros datos son *retweets* y no pudimos obtener mucha información de este análisis; por lo que se ha realizado el mismo proceso pero removiendo los *tweets* duplicados; de 65,489 *tweets* nos quedaron 15,101.
+
+```{r}
+tw_hashes <- digest::digest2int(tweets_texto)
+tw_dedup <- tibble(tweet = tweets_texto, hash = tw_hashes) %>% 
+  group_by(hash) %>% 
+  summarise(tweet = tweet[1], .groups = "drop") %>%  
+  mutate(longitud = nchar(tweet)) %>% 
+  filter(longitud >= 5) %>% # Quitamos los tweets con 5 caracteres
+  pull(tweet)
+
+tw_dedup_2 <- tibble(tweet = tweets_texto, usuario=tweets$username, hash = tw_hashes) %>% 
+  group_by(hash) %>% 
+  summarise(tweet = tweet[1], usuario=usuario[1], .groups = "drop") %>%  
+  mutate(longitud = nchar(tweet)) %>% 
+  filter(longitud >= 5) %>% 
+  pull(tweet, usuario)
+
+length(tweets_texto)
+length(tw_dedup)
+```
+Repetimos el mismo proceso realizado anteriormente para crear los hashes a partir de las tejas y separar por cubetas.
+
+```{r}
+set.seed(20210512)
+hash_f <- map(1:12, ~ generar_hash())
+tejas_tbl <- crear_tejas_str(tw_dedup, k = 6)
+firmas_tw <- calcular_firmas_doc(tejas_tbl, hash_f)
+particion <- split(1:12, ceiling(1:12 / 7))
+sep_cubetas <- separar_cubetas_fun(particion) 
+#sep_cubetas(firmas_tw$firma[[1]])
+cubetas_tbl <- firmas_tw %>%
+    mutate(cubeta = map(firma, sep_cubetas)) %>%
+    unnest_legacy(cubeta) %>% 
+    group_by(cubeta) %>% 
+    summarise(docs = list(doc_id), n = length(doc_id)) %>%
+    arrange(desc(n))
+
+# % de cubetas con documentos únicos
+nrow(cubetas_tbl %>% filter(., n==1)) / nrow(cubetas_tbl) * 100
+cubetas_tbl %>% arrange(desc(n)) %>% head(10)
+```
+En la tabla anterior, podemos observar que mantuvimos las 25,957 cubetas pero el número de documentos por cubeta bajó y ahora el máximo de documentos en una cubeta es de 25 documentos. Y esta vez obtenemos un aproximado del 90% de cubetas con un documento único.
+
+```{r}
+# filtramos las cubetas que tienen menos de 2 documentos para ejercicio visual de la gráfica
+cubetas_tbl_2 <- filter(cubetas_tbl, n>2)
+
+ggplot() + 
+  geom_line(data=cubetas_tbl_2, aes(x=as.numeric(row.names(cubetas_tbl_2)), y=n), color="#10D6C1") + 
+  labs(title="No. de documentos por cubeta", y="no. de documentos", x="id cubeta") +
+  theme_minimal()
+```
+
+Si evaluamos una cubeta con varios documentos, por ejemplo la segunda cubeta, podemos observar que los textos a pesar de que tienen diferentes cifras el contenido es muy parecido y hace referencia a albergues donde pernoctaron las personas tras el sismo.
+```{r}
+DT::datatable(cubetas_tbl$docs[[2]] %>% data.frame(tweet=tw_dedup[.],usuario=attr(tw_dedup_2[.],'names')))
+```
+
+Una vez obteniendo las cubetas podemos encontrar eficientemente los pares de similitud alta; ya que sólo se hará la evualación en los pares de documentos dentro de cada cubeta y se podrán filtrar los documentos en los que tengan menor a 30% de similitud.
+
+```{r}
+# Filtramos las cubetas en donde se pueden hacer pares
+cubetas_nu_tbl <- filter(cubetas_tbl, n > 2)
+
+# Agregar extracción de usuario a y usuario b
+pares_candidatos <- extraer_pares(cubetas_nu_tbl, cubeta, docs, textos = tw_dedup, names=attr(tw_dedup_2, 'names')) %>% 
+                  arrange(texto_a)
+
+pares_scores <- pares_candidatos %>% 
+  mutate(score = map2_dbl(texto_a, texto_b,
+  ~ sim_jaccard(calcular_tejas(.x, 5), calcular_tejas(.y, 5)))) %>% arrange(desc(score))  %>% filter(score > 0.3)
+DT::datatable(pares_scores)
+```
+
+Dado que en este análisis encontramos que muchos usuarios hacen *retweet* más que tener texto único, se optó por realizar un análisis con redes que en breve explicaremos.
+
 
 ## 4. Análisis de Redes
 
@@ -78,7 +294,7 @@ Medida de centralidad de eigenvector,
 
 
 
-#### Red dirigida de retuits
+#### Red dirigida de *retweets*
 
 - Nodos: 
 - Aristas:

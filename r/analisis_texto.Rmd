@@ -5,8 +5,8 @@ output: html_notebook
 ---
 
 ```{r}
-library(ggplot2)
 library(tidyverse)
+library(ggplot2)
 tweets <- read_csv('../data/tweets_limpios_2021_05_15.csv')
 
 sim_jaccard <- function(a, b){
@@ -161,7 +161,7 @@ DT::datatable(cubetas_tbl$docs[[3]] %>% data.frame(tweet=tw_dedup[.],usuario=att
 
 ```{r}
 # Los textos en la tercer cubeta más grande 
-DT::datatable(cubetas_tbl$docs[[13]]  %>% data.frame(tweet=tw_dedup[.],usuario=attr(tw_dedup_2[.],'names')))
+DT::datatable(cubetas_tbl$docs[[4]]  %>% data.frame(tweet=tw_dedup[.],usuario=attr(tw_dedup_2[.],'names')))
 ```
 
 
