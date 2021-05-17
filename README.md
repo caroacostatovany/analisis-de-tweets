@@ -1,5 +1,11 @@
 # Analisis-de-tweets
 
+#### Autores:
+
+- @caroacostatovany
+- @Eduardo-Moreno
+- @ElenaVillano
+
 ***
 
 Para ver el desarrolo del proyecto da click en el siguiente botón: 
