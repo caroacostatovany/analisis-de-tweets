@@ -2,9 +2,9 @@
 
 #### Autores:
 
-- @caroacostatovany
-- @Eduardo-Moreno
-- @ElenaVillano
+- [Carolina Acosta](https://github.com/caroacostatovany)
+- [Eduardo Moreno](https://github.com/Eduardo-Moreno)
+- [Elena Villalobos](https://github.com/ElenaVillano)
 
 ***
 
