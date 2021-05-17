@@ -6,7 +6,6 @@ output:
   html_document:
     theme: lumen
     hightlight: kate
-  pdf_document: default
 always_allow_html: true
 ---
 ***
@@ -270,20 +269,18 @@ Para hacer el análisis de redes del presente trabajo, utilizamos:
 - Los usuarios que fueron mencionados en el *tweet*.
 - Los usuarios que fueron retuiteados. 
 
-Es decir, tenemos dos redes dirigidas una que va del usuario propietario al usuario mencionado, y otra que va del usuario propietario al usuario que retuitea.
+Es decir, tenemos dos redes dirigidas, una que va del usuario propietario al usuario que fue mencionado por este último, y otra que va del usuario propietario al usuario que este mismo retuitea. Para estos análisis utilizamos las siguientes paqueterías, que están especializadas en este tipo de análisis. 
 
-#### Red dirigida de menciones
-
-- Nodos: 12,011
-- Aristas: 25,060
-
-```{r, include=FALSE}
-library(tidyverse)
+```{r, warning=FALSE}
 library(tidygraph)
 library(ggraph)
 library(igraphdata)
-library(viridis)
+```
 
+```{r, include=FALSE, warning=FALSE}
+library(viridis)
+library(tidyverse)
+library(patchwork)
 # un poco de limpieza
 usuarios <- tibble(tweets$username, tweets$usuarios_mencionados)
 
@@ -299,54 +296,77 @@ usuarios$u_mencionado <- str_replace_all(usuarios$u_mencionado, " ", "")
 usuarios$u_mencionado <- str_replace_all(usuarios$u_mencionado, ":", "")
 ```
 
-Construimos la red:
+#### Red dirigida de menciones
+
+Para esta red contemplamos: 
+
+- Nodos: 12,011
+- Aristas: 25,060
+
+que se conforma con las conecciónes entre los usuarios propietarios y mencionados. Esta base esta estructurada de tal manera que si un mismo usuario propietario mencionó a varios usuarios, el primero se repite varias veces para mostrar la conección de ese usuarios con otros más. Como se muestra en el siguiente objeto, que `loreCM505` mencionó en un mismo *tweet* a tres usuarios diferentes, pero aquí corresponde a un renglón diferente cada mención. 
 
 ```{r}
-# tbl_graph identifica los nodos y los vertices
+usuarios
+```
+
+Para formar la red utilizamos el objeto `as_tbl_graph()`, que identifica los nodos y los vértices:
+
+```{r}
 users_nodes_edges <- usuarios %>% as_tbl_graph()
 users_nodes_edges
+```
 
-# obtenemos los vertices
+En el siguiente código creamos un objeto que identifica las conexiones y nos muestra su frecuencia. 
+
+```{r}
 vertices_users <- users_nodes_edges %>% 
   activate(edges) %>% 
   select(to, from) %>% 
   as_tibble()
 
-# agregamos los vertices por frecuencia
 vertices_agregados_users <- vertices_users %>% 
   group_by(to, from) %>% 
-  summarise(freq_vert = n())
+  summarise(freq_vert = n(), 
+            .groups='drop') %>% 
+    arrange(desc(freq_vert))
 ```
 
-Observamos un histograma de las aristas más repetidas, filtrando desde 5 para arriba. En esta figura observamos que la frecuencia de aristas con menciones menores a 10, son muy grandes, por lo que utilizamos un filtro de menciones arriba de dicho número, para evitar tener conexiones con poca cantidad de menciones.
+Con el objeto anterior, formamos los siguientes histrograma. El de lado izquierdo nos muestra que tenemos muchas conexiones muy débiles donde la frecuencia de la arista es de 1, 2 o 3. El gráfico de la derecha, está filtrado con aristas mayores a 5. En este se puede apreciar que seguimos teniendo muchas conexiones débiles pero no tantas como si filtramos para conexiones arriba de 10. 
 
-```{r, echo=FALSE, fig.dim=c(5,4)}
-vertices_agregados_users %>% 
+```{r, echo=FALSE, fig.dim=c(10,4)}
+ho <- vertices_agregados_users %>% 
+  arrange(desc(freq_vert)) %>% 
+  #filter(freq_vert>5) %>% 
+  ggplot(aes(x=freq_vert)) +
+  geom_histogram(bins = 50,col='blue',
+                 fill='blue',alpha=0.7)+
+  xlab('Frecuencia de conexiones')+
+  ylab('')
+hi <- vertices_agregados_users %>% 
   arrange(desc(freq_vert)) %>% 
   filter(freq_vert>5) %>% 
   ggplot(aes(x=freq_vert)) +
   geom_histogram(bins = 50,col='blue',
                  fill='blue',alpha=0.7)+
-  xlab('Frecuencia de aristas')+
+  xlab('Frecuencia de conexiones > 5')+
   ylab('')
+
+ho+hi
+
 ```
 
-
+Con el siguiente nodo obtenemos los nodos y volvemos a armar la red con frecuencia de conexión arriba de 10. 
 
 ```{r}
-# obtenemos solo los nodos 
 nodos_users <- users_nodes_edges %>% 
   activate(nodes) %>% 
   as_tibble() 
 nodos_users
 
-# volvemos a armar la red
 users_nodes_edges_2 <- tbl_graph(
   nodes = nodos_users, 
   edges = vertices_agregados_users) 
-users_nodes_edges_2
 
-# filtramos para los que tienen más frecuencia
 corte_freq_vert <- 10
 users_grandes <- users_nodes_edges_2 %>% 
   activate(edges) %>% 
@@ -356,7 +376,7 @@ users_grandes <- users_nodes_edges_2 %>%
 ```
 
 
-La siguiente figura es una representación de la red que muestra las conecciones entre los nodos.  
+Y obtenemos la siguiente figura es una representación de la red que muestra las conecciones entre los nodos. En esta se observa una agrupación principal alrededor del usuario `DesSocial_CDMX`, que pareciera ser el nodo que tiene más *grado* pues tiene muchas aristas conectadas hacia él. Esta cuenta, correspondía a la Secretaría de Desarrollo Social de la Ciudad de México de ese periodo. También, se observan algunas agrupaciones alejadas y no conectadas a la agrupación principal. 
 
 ```{r, echo=FALSE, fig.dim=c(8,7)}
 users_grandes %>% 
@@ -365,11 +385,10 @@ users_grandes %>%
   geom_edge_link(arrow = arrow(length = unit(1, 'mm')), 
                  alpha = 0.5, colour="gray") + 
   geom_node_point(alpha=0.5,colour='turquoise3',size=3) +
-  geom_node_text(aes(label=name), repel = TRUE, size=2)+
-  theme_graph(base_family = "sans")
+  geom_node_text(aes(label=name), repel = TRUE, size=2)
 ```
 
-Ahora obtenemos la medida de intermediación:
+Ahora, para seguir con el análisis de la red obtendremos la medida de intermediación con el siguiente código:
 
 ```{r}
 # Componentes
@@ -394,22 +413,22 @@ usi <- usi %>% activate(nodes) %>%
 ```
 
 
-La siguiente figura presenta la red tomando en cuenta la medida de **intermediación**, que recordemos que nos proporciona una medida indicando qué tan único o importante es un nodo para conectar con otros nodos en la red. 
+La siguiente figura presenta la red tomando en cuenta la medida de **intermediación**, que recordemos que nos proporciona una medida indicando qué tan único o importante es un nodo para conectar con otros nodos en la red. Para este caso resalta mucho el usuario de `ManceraMiguelMX` y `GobCDMX`, que parece contienen conexiones únicas y en el caso del primero parece haber una conexión sobre todo para la cuentas oficiales como lo son el `C5_CDMX` y noticieros también oficiales. 
 
 ```{r, echo=FALSE, fig.dim=c(8,7)}
 # Graficamos
 usi %>% 
   activate(nodes) %>% 
   ggraph(layout = 'fr') +
-  geom_edge_link(arrow = arrow(length = unit(2, 'mm')), 
-                 alpha = 0.1, colour="gray") + 
+  geom_edge_link(arrow = arrow(length = unit(1, 'mm')), 
+                 alpha = 0.5, colour="gray") + 
   geom_node_point(aes(size = intermediacion),
                   colour='orange') +
   geom_node_text(aes(label=name),repel = TRUE,  size=2)+
   theme_graph(base_family = "sans")
 ```
 
-Medida de centralidad de eigenvector.
+Ahora obtendremos la medida de centralidad de eigenvector o también conocida como pagerank. Dicha medida es una especie de promedio de la centralidad de sus vecinos. De manera más específica, esta medida considera que la importancia de un nodo está dado por la suma normalizada de las importancia de sus vecinos. De esta forma, es importante estar cercano a nodos importantes (como en cercanía), pero también cuenta conectarse a muchos nodos (como en grado). 
 
 ```{r}
 usi <- usi %>%
@@ -417,26 +436,26 @@ usi <- usi %>%
   mutate(central_eigen = centrality_eigen())
 ```
 
-
+En el siguiente gráfico observamos que la medida de centralidad de eigenvector tanto en transparencia del texto de usuario, el tamaño y el color del punto. Lo que observamos es que efectivamente toma en cuenta estar cercano a nodos importantes y a su vez conectarse a muchos, que el usuario más relevante para nuestro conjunto de datos en menciones es `DesSocial_CDMX`, pues tiene el valor más alto, mientras que los otros usuarios tienen menos de 0.25. 
 
 ```{r, echo=FALSE, fig.dim=c(8,6)}
 usi %>%
   activate(nodes) %>% 
   ggraph(layout = 'graphopt', spring.constant = 0.25, charge = 0.05, niter = 300) + 
-  geom_edge_link2(arrow = arrow(length = unit(2, 'mm')), alpha = 0.2, colour="gray") + 
+  geom_edge_link2(arrow = arrow(length = unit(2, 'mm')), alpha = 0.05, colour="black") + 
   geom_node_point(aes(size = central_eigen, colour=central_eigen)) +
-  geom_node_text(aes(label=name),  repel = TRUE,size=2)+
-  theme_graph() +
-  scale_color_viridis()
+  geom_node_text(aes(label = name, alpha= central_eigen), repel = TRUE, size = 3, color = "black") +
+  scale_color_viridis()+
+  theme_graph()
 ```
-
-
 
 
 #### Red dirigida de *retweets*
 
-- Nodos: 
-- Aristas:
+Consideramos importante separar los *retweets* de las menciones, porque es un proceso diferente en *Twitter*, a continuación presentaremos sólo los gráficos correspondientes, pues el procesamiento para el análisis fue muy similar al ya presentado. 
+
+- Nodos: 26,473.
+- Aristas: 46,991.
 
 ```{r, include=FALSE}
 usuarios <- tibble(tweets$username, tweets$retweet_user)
@@ -450,17 +469,16 @@ usuarios <- tibble(u_propietario =
 # quitamos espacios
 usuarios$u_retuiteado <- str_replace_all(usuarios$u_retuiteado, " ", "")
 usuarios$u_retuiteado <- str_replace_all(usuarios$u_retuiteado, ":", "")
-```
-
-Construimos la red:
-
-```{r, include=FALSE}
 # tbl_graph identifica los nodos y los vertices
 users_nodes_edges <- usuarios %>% as_tbl_graph()
+```
+
+Observamos la red construida:
+
+```{r}
 users_nodes_edges
 ```
 
-Realizamos un proceso muy similar para los usuarios con menciones, por lo que acontinuación sólo se colocarán los gráficos. 
 
 ```{r, include=FALSE}
 # obtenemos los vertices
@@ -472,10 +490,11 @@ vertices_users <- users_nodes_edges %>%
 # agregamos los vertices por frecuencia
 vertices_agregados_users <- vertices_users %>% 
   group_by(to, from) %>% 
-  summarise(freq_vert = n())
+  summarise(freq_vert = n(),
+            .groups='drop')
 ```
 
-Observamos un histograma de las aristas más repetidas, filtrando desde 5 para arriba. En esta figura observamos que la frecuencia de aristas con menciones menores a 10, son muy grandes, por lo que utilizamos un filtro de menciones arriba de dicho número, para evitar tener conexiones con poca cantidad de menciones.
+El siguiente gráfico nos muestra que tenemos conexiones más fuertes en el caso de los retuits, por lo que utilizaremos un criterio de conexiones mayores a 15. 
 
 ```{r, echo=FALSE, fig.dim=c(5,4)}
 vertices_agregados_users %>% 
@@ -484,11 +503,9 @@ vertices_agregados_users %>%
   ggplot(aes(x=freq_vert)) +
   geom_histogram(bins = 50,col='blue',
                  fill='blue',alpha=0.7)+
-  xlab('Frecuencia de aristas')+
+  xlab('Frecuencia de conexiones > 5')+
   ylab('')
 ```
-
-Filtrado de 15. 
 
 ```{r, include=FALSE}
 # obtenemos solo los nodos 
@@ -513,7 +530,7 @@ users_grandes <- users_nodes_edges_2 %>%
 ```
 
 
-La siguiente figura es una representación de la red que muestra las conecciones entre los nodos.  
+La siguiente figura es una representación de la red que muestra las conecciones entre los nodos. Se puede observar más agrupaciones entre los nodos, una de estas agrupaciones parece centrarse alrededor de `ManceraMiguelCDMX` y algunas cuentas oficiales del mismo gobierno. También, obseramos otra agrupación con el grupo `Milenio`, y otras tantas agrupaciones con varios nodos.  
 
 ```{r, echo=FALSE, fig.dim=c(8,7)}
 users_grandes %>% 
@@ -526,7 +543,7 @@ users_grandes %>%
   theme_graph(base_family = "sans")
 ```
 
-Ahora obtenemos la medida de intermediación:
+Para analizar con más detalle esta red observamos la siguiente figura que es con la medida de *intermedicación*, que parece cambiar completamente la estructura de la red destacando `GobCDMX` y `seduviCDMX`. La cuenta de `ManceraMiguelCDMX` parece mantenerse en el centro de la red con muchas conexiones. 
 
 ```{r, include=FALSE}
 # Componentes
@@ -551,22 +568,20 @@ usi <- usi %>% activate(nodes) %>%
 ```
 
 
-La siguiente figura presenta la red tomando en cuenta la medida de **intermediación**, que recordemos que nos proporciona una medida indicando qué tan único o importante es un nodo para conectar con otros nodos en la red. 
-
 ```{r, echo=FALSE, fig.dim=c(8,7)}
 # Graficamos
 usi %>% 
   activate(nodes) %>% 
   ggraph(layout = 'fr') +
-  geom_edge_link(arrow = arrow(length = unit(2, 'mm')), 
-                 alpha = 0.1, colour="gray") + 
+  geom_edge_link(arrow = arrow(length = unit(1, 'mm')), 
+                 alpha = 0.3, colour="gray") + 
   geom_node_point(aes(size = intermediacion),
                   colour='orange') +
   geom_node_text(aes(label=name),repel = TRUE,  size=2)+
   theme_graph(base_family = "sans")
 ```
 
-Medida de centralidad de eigenvector.
+Por último, observemos el gráfico de la medida de centralidad de eigenvector. 
 
 ```{r, include=FALSE}
 usi <- usi %>%
@@ -588,6 +603,12 @@ usi %>%
 ```
 
 #### Comparación de redes
+
+En este análisis se observó que si parece haber un proceso un poco diferente a la hora de realizar retuits o hacer menciones de otros usuarios. Por ejemplo, a pesar de que `ManceraMiguelCDMX` destacó en ambas redes debido a que fue el jefe de gobierno de la CDMX, durante el sismo, obtuvo mayor relevancia en la red de retuits que de menciones.
+
+También, observamos que cambian mucho las redes dependiendo de la medida que utilices, si bien el número de conexiones parecen ser importantes, también lo es indagar más en las redes para ver si esos usuarios también tienen importancia siendo usuarios únicos. 
+
+## 5. Conclusiones
 
 ***
 
