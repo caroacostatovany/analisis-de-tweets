@@ -15,48 +15,52 @@ always_allow_html: true
 
 Las redes sociales en periodos de emergencia ha incrementado su importancia por la rapidez de la comunicación y el alcance que tienen. Una de las redes sociales que más presencia tiene en este ámbito, es *Twitter*, debido a que la mayoría de entidades gubernamentales tienen una cuenta oficial por la cuál realizan comunicados. 
 
-El análisis del comportamiento en redes sociales como *Twitter* puede realizarse de varias maneras. Una es estudiando las relaciones entre los diferentes usuarios para ver la importancia que tiene como usuario para comunicar a la comunidad en general. Otra forma de analizar este comportamiento, es analizando el contenido del mismo texto para ver el tipo de mensajes que la gente está transmitiendo, si son similares o difiren mucho entre ellos. 
+El análisis del comportamiento en redes sociales como *Twitter* puede realizarse de varias maneras. Una, es estudiando las relaciones entre los diferentes agentes y ver cuáles son los usuarios más relevantes o únicos en dichas interacciones. Otra forma de analizar este comportamiento, es analizando el contenido del mismo texto para ver el tipo de mensajes que la gente está transmitiendo, si son similares o difiren mucho entre ellos. 
 
-Estas herramientas nos pueden ayudar a entender de manera amplia, el comportamiento de las personas en dicha red social, sobre todo en periodos de emergencia donde en crucial estar atentos a información oficial y verídica.
+Estos enfoques nos pueden ayudar a entender de manera amplia, el comportamiento de las personas en dicha red social, sobre todo en periodos de emergencia cuando es crucial estar atentos a información oficial y verídica.
 
 ### 1.1. Objetivo
 
-El objetivo del presente trabajo, es estudiar el comportamiento de la sociedad a través de la red social *Twitter* en un evento en específico como sismo del 19 de septiembre del 2017 en la Ciudad de México. Este estudio se realizará con herramientas de análisis de texto, Locality Sensitive Hashing y análisis de redes.
+##### El objetivo del presente trabajo, es estudiar el comportamiento de usuarios a través de la red social *Twitter* en un evento en específico como sismo del 19 de septiembre del 2017 en la Ciudad de México. Específicamente, se utilizará Locality Sensitive Hashing (LSH) para agrupar colecciones de los *tweets*  que tengan alta similitud y se realizará un análisis de redes para identificar usuarios clave en este tipo de eventos. 
+
+**El código asociado al presente trabajo lo encuentras en el siguiente [repositorio](https://github.com/caroacostatovany/analisis-de-tweets).**
+
+**Palabras clave: Locality Sensitive Hashing, Análisis de redes, Minería de texto, Twitter.**
 
 ### 1.2. Metodología
 
-Se realizó un *scrapping* de *tweets* desde la API de *Twitter*, obteniendo tokens y llaves secretas para acceder como investigador académico y así poder obtener *tweets* históricos con el endpoint: "https://api.twitter.com/2/tweets/search/all"
+Para tener acceso a los *tweets* se realizó una descarga desde la *API*. Para realizar dicha descarga, se tuvo que completar una aplicación a [Developer Twitter](https://developer.twitter.com/en) como investigador académico explicando las intenciones del estudio. Posteriormente, se obtuvo el acceso a través tokens y llaves secretas proporcionadas por *Twitter*.
 
-Se descargaron alrededor de 80,000 *tweets* de los cuáles se obtuvimos **65,489 tweets con clave única, incluyendo retweets**. Los datos extraídos son del 11 de septiembre de 2017 al 31 de diciembre de 2017; utilizando como referencia de palabras "sismo cdmx", "#MexicoNosNecesita", "ayuda sismo" y "19s".
+Se descargaron alrededor de 80,000 *tweets* de los cuáles se obtuvimos **65,489 tweets con clave única, incluyendo retweets**. Los datos extraídos son del 11 de septiembre de 2017 al 31 de diciembre de 2017. Se utilizaron como referencia de palabras `sismo cdmx`, `#MexicoNosNecesita`, `ayuda sismo` y `19s`.
 
 El contenido de la base tiene las siguientes columnas:
 
-- created_at: la fecha en la que se publicó el *tweet*.
-- id: ID único del *tweet*.
-- author_id: ID del usuario del *tweet*.
-- reply_to_user_id: diccionario del tipo de *tweet* (si fue *retweet*) y del ID del usuario a quien hizo *retweet*.
-- entities: diccionario de nombres de usuario, *hashtags* y URLs mencionados en el *tweet*.
-- text: texto del *tweet*.
-- username: nombre de usuario que publicó el *tweet*.
+- `created_at`: la fecha en la que se publicó el *tweet*.
+- `id`: ID único del *tweet*.
+- `author_id`: ID del usuario del *tweet*.
+- `reply_to_user_id`: diccionario del tipo de *tweet* (si fue *retweet*) y del ID del usuario a quien hizo *retweet*.
+- `entities`: diccionario de nombres de usuario, *hashtags* y URLs mencionados en el *tweet*.
+- `text`: texto del *tweet*.
+- `username`: nombre de usuario que publicó el *tweet*.
 
 ## 2. Limpieza y análisis de texto
 
-Antes de iniciar cualquier tipo de análisis decidimos limpiar el texto del *tweet* y agregar dos columnas para que el análisis de redes fuera más sencillo de realizar, las cuales fueron: nombre de usuario a quien se le hizo *retweet* y nombres de usuarios mencionados en el *tweet*. En las tareas de limpieza y agregado de columnas se utilizaron expresiones regulares.
+Antes de iniciar cualquier tipo de análisis decidimos limpiar el texto del *tweet* y agregar dos columnas para que el análisis de redes fuera más sencillo de realizar. Las columnas agregadas fueron: nombre de usuario a quien se le hizo *retweet* y nombres de usuarios mencionados en el *tweet*. En las tareas de limpieza y agregado de columnas se utilizaron expresiones regulares.
 
-Iniciamos con la agregación de columnas:
+Iniciamos con la adición de columnas:
 
-- Nombre de usuario del *retweet*: Se obtuvo a partir del *tweet* extrayendo el usuario mencionado cuando existía "RT @" en el *tweet*.
+- Nombre de usuario del *retweet*: Se obtuvo a partir del *tweet* extrayendo el usuario mencionado cuando existía "RT @" en el mismo *tweet*.
 - Nombres de usuarios mencionados: Se obtuvieron todas las menciones en el *tweet* y se remueve el nombre de usuario del *retweet* si existe.
 
 Posteriormente, realizamos la limpieza del texto del *tweet* donde las tareas fueron las siguientes:
 
 - Remover:
-  - Acentos
-  - Caracteres especiales como "’"?¡!*,.():;-_¿", a
-  - La secuencia "RT" haciendo referencia al retweet
-  - Menciones de usuarios
+  - Acentos.
+  - Caracteres especiales como "’"?¡!*,.():;-_¿".
+  - La secuencia "RT" haciendo referencia al retweet.
+  - Menciones de usuarios.
   - URLs especificadas como www. o https:
-  - Espacios extras
+  - Espacios extras.
   
 ## 3. Minhashing - Locality Sensitive Hashing 
 
@@ -138,13 +142,17 @@ extraer_pares <- function(cubetas_df, cubeta, docs, textos = NULL, names = NULL)
    }
    pares %>% ungroup 
 }
+#tweets <- read_csv('../data/tweets_limpios_2021_05_15.csv')
+tweets <- read.csv('/Volumes/MemoriaEle/HeavyData/tweets_sismo/tweets_limpios_2021_05_12.csv')
 ```
 
 Empezemos el análisis de *tweets* incluyendo *retweets*:
 
+```{r message=FALSE, warning=FALSE, eval=FALSE}
+tweets <- read_csv('../data/tweets_limpios_2021_05_15.csv')
+```
+
 ```{r lectura, message=FALSE, warning=FALSE}
-#tweets <- read_csv('../data/tweets_limpios_2021_05_15.csv')
-tweets <- read.csv('/Volumes/MemoriaEle/HeavyData/tweets_sismo/tweets_limpios_2021_05_12.csv')
 tweets_texto <- tweets$texto_limpio
 ```
 
@@ -303,7 +311,7 @@ Para esta red contemplamos:
 - Nodos: 12,011
 - Aristas: 25,060
 
-que se conforma con las conecciónes entre los usuarios propietarios y mencionados. Esta base esta estructurada de tal manera que si un mismo usuario propietario mencionó a varios usuarios, el primero se repite varias veces para mostrar la conección de ese usuarios con otros más. Como se muestra en el siguiente objeto, que `loreCM505` mencionó en un mismo *tweet* a tres usuarios diferentes, pero aquí corresponde a un renglón diferente cada mención. 
+que se conforma con las conexiones entre los usuarios propietarios y mencionados. Esta base esta estructurada de tal manera que si un mismo usuario propietario mencionó a varios usuarios, el primero se repite varias veces para mostrar la conexión de ese usuarios con otros más. Como se muestra en el siguiente objeto, que `loreCM505` mencionó en un mismo *tweet* a tres usuarios diferentes, pero aquí corresponde a un renglón diferente cada mención. 
 
 ```{r}
 usuarios
@@ -331,7 +339,7 @@ vertices_agregados_users <- vertices_users %>%
     arrange(desc(freq_vert))
 ```
 
-Con el objeto anterior, formamos los siguientes histrograma. El de lado izquierdo nos muestra que tenemos muchas conexiones muy débiles donde la frecuencia de la arista es de 1, 2 o 3. El gráfico de la derecha, está filtrado con aristas mayores a 5. En este se puede apreciar que seguimos teniendo muchas conexiones débiles pero no tantas como si filtramos para conexiones arriba de 10. 
+Con el objeto anterior, formamos los siguientes histrogramas. El de lado izquierdo nos muestra que tenemos muchas conexiones muy débiles donde la frecuencia de la arista es de 1, 2 o 3. El gráfico de la derecha, está filtrado con aristas mayores a 5. En este se puede apreciar que seguimos teniendo muchas conexiones débiles pero no tantas como si filtramos para conexiones arriba de 10. 
 
 ```{r, echo=FALSE, fig.dim=c(10,4)}
 ho <- vertices_agregados_users %>% 
@@ -355,7 +363,7 @@ ho+hi
 
 ```
 
-Con el siguiente nodo obtenemos los nodos y volvemos a armar la red con frecuencia de conexión arriba de 10. 
+Con el siguiente objeto obtenemos los nodos y volvemos a armar la red con frecuencia de conexión arriba de 10. 
 
 ```{r}
 nodos_users <- users_nodes_edges %>% 
@@ -376,7 +384,7 @@ users_grandes <- users_nodes_edges_2 %>%
 ```
 
 
-Y obtenemos la siguiente figura es una representación de la red que muestra las conecciones entre los nodos. En esta se observa una agrupación principal alrededor del usuario `DesSocial_CDMX`, que pareciera ser el nodo que tiene más *grado* pues tiene muchas aristas conectadas hacia él. Esta cuenta, correspondía a la Secretaría de Desarrollo Social de la Ciudad de México de ese periodo. También, se observan algunas agrupaciones alejadas y no conectadas a la agrupación principal. 
+Y obtenemos la siguiente figura, que es una representación de la red que muestra las conexiones entre los nodos. En esta se observa una agrupación principal alrededor del usuario `DesSocial_CDMX`, que pareciera ser el nodo que tiene más **grado** pues tiene muchas aristas conectadas hacia él. Esta cuenta, correspondía a la Secretaría de Desarrollo Social de la Ciudad de México de ese periodo. También, se observan algunas agrupaciones alejadas y no conectadas a la agrupación principal, como en las que el `TecdeMonterrey`, `lasillarota` y `PGJDF_CDMX` son parte. Cercana a esta también se observan agrupaciones de 3 o 4 nodos. 
 
 ```{r, echo=FALSE, fig.dim=c(8,7)}
 users_grandes %>% 
@@ -413,7 +421,7 @@ usi <- usi %>% activate(nodes) %>%
 ```
 
 
-La siguiente figura presenta la red tomando en cuenta la medida de **intermediación**, que recordemos que nos proporciona una medida indicando qué tan único o importante es un nodo para conectar con otros nodos en la red. Para este caso resalta mucho el usuario de `ManceraMiguelMX` y `GobCDMX`, que parece contienen conexiones únicas y en el caso del primero parece haber una conexión sobre todo para la cuentas oficiales como lo son el `C5_CDMX` y noticieros también oficiales. 
+La siguiente figura presenta la red tomando en cuenta la medida de **intermediación**, que recordemos que nos proporciona una medida indicando qué tan único o importante es un nodo para conectar con otros nodos en la red. Para este caso resalta mucho el usuario de `ManceraMiguelMX` y `GobCDMX`, que tienen una intermediación mucho más grande que incluso `DesSocial_CDMX`. Esto es debido a que tienen contienen conexiones únicas y en el caso de `ManceraMiguelMX` parece haber una conexión especial con cuentas oficiales como lo son el `C5_CDMX` y cuentas de noticieros oficiales. 
 
 ```{r, echo=FALSE, fig.dim=c(8,7)}
 # Graficamos
@@ -428,7 +436,7 @@ usi %>%
   theme_graph(base_family = "sans")
 ```
 
-Ahora obtendremos la medida de centralidad de eigenvector o también conocida como pagerank. Dicha medida es una especie de promedio de la centralidad de sus vecinos. De manera más específica, esta medida considera que la importancia de un nodo está dado por la suma normalizada de las importancia de sus vecinos. De esta forma, es importante estar cercano a nodos importantes (como en cercanía), pero también cuenta conectarse a muchos nodos (como en grado). 
+Ahora obtendremos la medida de centralidad de eigenvector o también conocida como **pagerank**. Dicha medida es una especie de promedio de la centralidad de sus vecinos. De manera más específica, esta medida considera que la importancia de un nodo está dado por la suma normalizada de las importancia de sus vecinos. De esta forma, es importante estar cercano a nodos importantes (como en cercanía), pero también cuenta conectarse a muchos nodos (como en grado). 
 
 ```{r}
 usi <- usi %>%
@@ -436,17 +444,17 @@ usi <- usi %>%
   mutate(central_eigen = centrality_eigen())
 ```
 
-En el siguiente gráfico observamos que la medida de centralidad de eigenvector tanto en transparencia del texto de usuario, el tamaño y el color del punto. Lo que observamos es que efectivamente toma en cuenta estar cercano a nodos importantes y a su vez conectarse a muchos, que el usuario más relevante para nuestro conjunto de datos en menciones es `DesSocial_CDMX`, pues tiene el valor más alto, mientras que los otros usuarios tienen menos de 0.25. 
+En el siguiente gráfico observamos la medida de centralidad de eigenvector tanto en el tamaño y el color del punto. Lo que observamos es que efectivamente importa estar cercano a nodos importantes y a su vez conectarse a muchos, que el usuario más relevante para nuestro conjunto de datos en menciones es `DesSocial_CDMX`, pues tiene el valor más alto, mientras que los otros usuarios tienen esta medida en menos de 0.25. 
 
 ```{r, echo=FALSE, fig.dim=c(8,6)}
 usi %>%
   activate(nodes) %>% 
   ggraph(layout = 'graphopt', spring.constant = 0.25, charge = 0.05, niter = 300) + 
-  geom_edge_link2(arrow = arrow(length = unit(2, 'mm')), alpha = 0.05, colour="black") + 
+  geom_edge_link2(arrow = arrow(length = unit(2, 'mm')), alpha = 0.2, colour="gray") + 
   geom_node_point(aes(size = central_eigen, colour=central_eigen)) +
-  geom_node_text(aes(label = name, alpha= central_eigen), repel = TRUE, size = 3, color = "black") +
-  scale_color_viridis()+
-  theme_graph()
+  geom_node_text(aes(label=name),  repel = TRUE,size=2)+
+  theme_graph() +
+  scale_color_viridis()
 ```
 
 
@@ -530,7 +538,7 @@ users_grandes <- users_nodes_edges_2 %>%
 ```
 
 
-La siguiente figura es una representación de la red que muestra las conecciones entre los nodos. Se puede observar más agrupaciones entre los nodos, una de estas agrupaciones parece centrarse alrededor de `ManceraMiguelCDMX` y algunas cuentas oficiales del mismo gobierno. También, obseramos otra agrupación con el grupo `Milenio`, y otras tantas agrupaciones con varios nodos.  
+La siguiente figura es una representación de la red que muestra las conexiones entre los nodos. Se puede observar más agrupaciones entre los nodos, una de estas agrupaciones parece centrarse alrededor de `ManceraMiguelCDMX` y algunas cuentas oficiales del mismo gobierno. También, observamos otra agrupación con el grupo `Milenio` y el retuiteo de cuentas similares. Alrededor, de estos grupos hay muchos pares de nodos conectados entre sí, pero no conectados con otros usuarios. 
 
 ```{r, echo=FALSE, fig.dim=c(8,7)}
 users_grandes %>% 
@@ -543,7 +551,7 @@ users_grandes %>%
   theme_graph(base_family = "sans")
 ```
 
-Para analizar con más detalle esta red observamos la siguiente figura que es con la medida de *intermedicación*, que parece cambiar completamente la estructura de la red destacando `GobCDMX` y `seduviCDMX`. La cuenta de `ManceraMiguelCDMX` parece mantenerse en el centro de la red con muchas conexiones. 
+Para analizar con más detalle esta red, observamos la siguiente figura que es con la medida de **intermedicación**, que parece cambiar completamente la estructura de la red destacando `GobCDMX` y `seduviCDMX` que son los nodos con más intermediación de esta red. La cuenta de `ManceraMiguelCDMX` parece mantenerse en el centro de la red con muchas conexiones, pero no tiene tanta intermediación como los usuarios ya mencionados. 
 
 ```{r, include=FALSE}
 # Componentes
@@ -589,8 +597,6 @@ usi <- usi %>%
   mutate(central_eigen = centrality_eigen())
 ```
 
-
-
 ```{r, echo=FALSE, fig.dim=c(8,6)}
 usi %>%
   activate(nodes) %>% 
@@ -606,9 +612,19 @@ usi %>%
 
 En este análisis se observó que si parece haber un proceso un poco diferente a la hora de realizar retuits o hacer menciones de otros usuarios. Por ejemplo, a pesar de que `ManceraMiguelCDMX` destacó en ambas redes debido a que fue el jefe de gobierno de la CDMX, durante el sismo, obtuvo mayor relevancia en la red de retuits que de menciones.
 
-También, observamos que cambian mucho las redes dependiendo de la medida que utilices, si bien el número de conexiones parecen ser importantes, también lo es indagar más en las redes para ver si esos usuarios también tienen importancia siendo usuarios únicos. 
+También, observamos que cambian mucho las redes dependiendo de la medida que utilices, si bien el número de conexiones parecen ser importantes, también lo es ser único cuando te conectas con otros usuarios. 
 
 ## 5. Conclusiones
+
+Dado un fenómeno catastrófico como el terremoto analizado, el cual causó pérdidas humanas y monetarias, lo que más importa es que los individuos estén informados con el objetivo de prevenir mayores pérdidas y ayudar a los necesitados. Por medio de Twitter puede lograrse dicho objetivo y es aquí donde la métrica de intermediación toma relevante importancia, pues dicha métrica indica cuán importante es un usuario de Twitter para informar a otros. Complementando con la métrica de pagerank, podemos obtener aquellos usuarios que tienen relevancia dado que permiten la conexión con muchos demás usuarios, así como usuarios de mayor o similar relevancia que los primeros.
+
+Lo anterior parece confirmar, por lo menos para esta muestra, que los usuarios efectivamente consideran las cuentas oficiales para compartir información relevante. Además, de que como observamos en el análisis de LSH se comparte contenido para pedir ayuda o comunicar información relevante. 
+
+Un reto importante en este estudio fue conseguir más *tweets*, que por el proceso mismo de descarga en el cual utilizamos palabras clave, pudiéramos tener un sesgo en la muestra. Descargar *tweets* con otras palabras clave, analizarlos y repetir este proceso de manera iterativa, pudiera darnos un mejor indicio del comportamiento general de los usuarios en situaciones de emergencia. 
+
+#### Referencias:
+
+- Curso de Métodos Analíticos de Fepile González,  [notas](https://metodos-analiticos-2021.netlify.app/). 
 
 ***
 
