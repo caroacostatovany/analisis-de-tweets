@@ -4,13 +4,6 @@
 Para ver el desarrolo del proyecto da click en el siguiente botón: 
 [![Proyecto](https://img.shields.io/badge/Documentaci%C3%B3n-HTML-blue)](https://htmlpreview.github.io/?https://github.com/caroacostatovany/analisis-de-tweets/blob/main/docs/final_document.html)
 
-#### Autores:
-
-- [Carolina Acosta](https://github.com/caroacostatovany)
-- [Eduardo Moreno](https://github.com/Eduardo-Moreno)
-- [Elena Villalobos](https://github.com/ElenaVillano)
-
-
 ### Objetivo
 
 El objetivo del presente trabajo, es estudiar el comportamiento de usuarios a través de la red social *Twitter*, en un evento específico como sismo el del 19 de septiembre del 2017 en la Ciudad de México. Específicamente, se utilizará Locality Sensitive Hashing (LSH) para agrupar colecciones de los tweets que tengan alta similitud y se realizará un análisis de redes para identificar usuarios clave en este tipo de eventos.
