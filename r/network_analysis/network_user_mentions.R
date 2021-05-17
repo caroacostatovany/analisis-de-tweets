@@ -109,12 +109,11 @@ usi <- users_grandes %>%
 usi <- usi %>% activate(nodes) %>% 
   mutate(intermediacion = centrality_betweenness())
 
-# Graficamos
 usi %>% 
   activate(nodes) %>% 
   ggraph(layout = 'fr') +
-  geom_edge_link(arrow = arrow(length = unit(2, 'mm')), 
-                 alpha = 0.1, colour="gray") + 
+  geom_edge_link(arrow = arrow(length = unit(1, 'mm')), 
+                 alpha = 0.3, colour="gray") + 
   geom_node_point(aes(size = intermediacion),
                   colour='orange') +
   geom_node_text(aes(label=name),repel = TRUE,  size=2)+
@@ -140,11 +139,11 @@ usi %>%
 usi %>%
   activate(nodes) %>% 
   ggraph(layout = 'graphopt', spring.constant = 0.25, charge = 0.05, niter = 300) + 
-  geom_edge_link2(arrow = arrow(length = unit(2, 'mm')), alpha = 0.01, colour="black") + 
+  geom_edge_link2(arrow = arrow(length = unit(2, 'mm')), alpha = 0.2, colour="gray") + 
   geom_node_point(aes(size = central_eigen, colour=central_eigen)) +
-  geom_node_text(aes(label = name, alpha = central_eigen), repel = TRUE, size = 3, color = "black") +
-  scale_color_viridis()+
+  geom_node_text(aes(label=name),  repel = TRUE,size=2)+
   theme_graph() +
+  scale_color_viridis() +
   ggsave("~/Documents/EquiposGit/analisis-de-tweets/docs/images/red_centraleigenpro_mencion.png")#,
 
 
