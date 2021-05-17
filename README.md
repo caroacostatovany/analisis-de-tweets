@@ -1,4 +1,8 @@
 # Analisis-de-tweets
+***
+
+Para ver el desarrolo del proyecto da click en el siguiente botón: 
+[![Proyecto](https://img.shields.io/badge/Documentaci%C3%B3n-HTML-blue)](https://htmlpreview.github.io/?https://github.com/caroacostatovany/analisis-de-tweets/blob/main/docs/final_document.html)
 
 #### Autores:
 
@@ -6,10 +10,6 @@
 - [Eduardo Moreno](https://github.com/Eduardo-Moreno)
 - [Elena Villalobos](https://github.com/ElenaVillano)
 
-***
-
-Para ver el desarrolo del proyecto da click en el siguiente botón: 
-[![Proyecto](https://img.shields.io/badge/Documentaci%C3%B3n-HTML-blue)](https://htmlpreview.github.io/?https://github.com/caroacostatovany/analisis-de-tweets/blob/main/docs/final_document.html)
 
 ### Objetivo
 
