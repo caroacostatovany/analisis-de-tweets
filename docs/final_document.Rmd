@@ -21,7 +21,7 @@ Estos enfoques nos pueden ayudar a entender de manera amplia, el comportamiento 
 
 ### 1.1. Objetivo
 
-##### El objetivo del presente trabajo, es estudiar el comportamiento de usuarios a través de la red social *Twitter* en un evento en específico como sismo del 19 de septiembre del 2017 en la Ciudad de México. Específicamente, se utilizará Locality Sensitive Hashing (LSH) para agrupar colecciones de los *tweets*  que tengan alta similitud y se realizará un análisis de redes para identificar usuarios clave en este tipo de eventos. 
+##### El objetivo del presente trabajo, es estudiar el comportamiento de usuarios a través de la red social *Twitter*, en un evento específico como sismo del 19 de septiembre del 2017 en la Ciudad de México. Específicamente, se utilizará Locality Sensitive Hashing (LSH) para agrupar colecciones de los *tweets*  que tengan alta similitud y se realizará un análisis de redes para identificar usuarios clave en este tipo de eventos. 
 
 **El código asociado al presente trabajo lo encuentras en el siguiente [repositorio](https://github.com/caroacostatovany/analisis-de-tweets).**
 
